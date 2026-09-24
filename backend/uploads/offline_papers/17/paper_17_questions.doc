@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Paper - biology</title>
+
+<style>
+  @page { size: A4; margin: 25mm; }
+
+  body {
+    font-family: "Times New Roman", serif;
+    font-size: 14pt;
+    line-height: 1.6;
+    color: #000;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 20pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta {
+    text-align: center;
+    font-size: 12pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta-right {
+    text-align: right;
+    font-size: 11pt;
+    margin-bottom: 8mm;
+    color: #333;
+  }
+
+  .question {
+    margin-bottom: 18mm;
+    page-break-inside: avoid;
+  }
+
+  .q-text {
+    margin-bottom: 6mm;
+    font-weight: 500;
+  }
+
+  .options {
+    margin-top: 4mm;
+    margin-bottom: 10mm;
+  }
+
+  .opt {
+    display: block;
+    margin-bottom: 4mm;
+  }
+
+  .answer-space {
+    border-bottom: 1px solid #000;
+    height: 14mm;
+    margin-top: 6mm;
+    padding-top: 2mm;
+  }
+
+</style>
+</head>
+
+<body>
+<h1>Paper - biology</h1>
+
+<div class="meta">
+  Duration: 60 Minutes
+   | 
+  Total Marks: 16
+</div>
+
+<div class="meta-right">
+  biology
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>1.</strong> djfladjsklfjaldskfjklsdajfsdjaklfjsdalkjflksdjfkjsdklfjlkadsjfkljdsaklfjkladsjfkljdaskfjkldsajflksdjaklfjadslkfjklsadjfkldsajfkljaskdljfklsdajfkljasdlkfjdaskl asdfjlkdjfladjsklfjaldskfjklsdajfsdjaklfjsdalkjflksdjfkjsdklfjlkadsjfkljdsaklfjkladsjfkljdaskfjkldsajflksdjaklfjadslkfjklsadjfkldsajfkljaskdljfklsdajfkljasdlkfjdaskl asdfjlk;adsjf ;; askldfjklasdjf lk kasjdfkl asdjflkjsa dflk;jsa;kldfj lk  lksdf;lkasd jflk sdfl;djfladjsklfjaldskfjklsdajfsdjaklfjsdalkjflksdjfkjsdklfjlkadsjfkljdsaklfjkladsjfkljdaskfjkldsajflksdjaklfjadslkfjklsadjfkldsajfkljaskdljfklsdajfkljasdlkfjdaskl asdfjlk;adsjf ;; askldfjklasdjf lk kasjdfkl asdjflkjsa dflk;jsa;kldfj lk  lksdf;lkasd jflk sdfl;djfladjsklfjaldskfjklsdajfsdjaklfjsdalkjflksdjfkjsdklfjlkadsjfkljdsaklfjkladsjfkljdaskfjkldsajflksdjaklfjadslkfjklsadjfkldsajfkljaskdljfklsdajfkljasdlkfjdaskl asdfjlk;adsjf ;; askldfjklasdjf lk kasjdfkl asdjflkjsa dflk;jsa;kldfj lk  lksdf;lkasd jflk sdfl;djfladjsklfjaldskfjklsdajfsdjaklfjsdalkjflksdjfkjsdklfjlkadsjfkljdsaklfjkladsjfkljdaskfjkldsajflksdjaklfjadslkfjklsadjfkldsajfkljaskdljfklsdajfkljasdlkfjdaskl asdfjlk;adsjf ;; askldfjklasdjf lk kasjdfkl asdjflkjsa dflk;jsa;kldfj lk  lksdf;lkasd jflk sdfl;;adsjf ;; askldfjklasdjf lk kasjdfkl asdjflkjsa dflk;jsa;kldfj lk  lksdf;lkasd jflk sdfl;</div>
+  <div class="options"><div class="opt">A. asdfnljsadkfj las;df  aslkdjfdk lsda;fjl sasfd;</div><div class="opt">B. sdjf aksldfj ;lskajdf lasdj fjdsafk;l </div><div class="opt">C. ak;sdjf lksdf alk;sdfj klasd fl;asjdf l;sdfjsa df;sldajfasd;kljf;klsadjfklsajdfkljasdf</div><div class="opt">D. ksadjf lk lkasjfdlkajs dfsalnvk;lja;f</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>2.</strong> sadf</div>
+  <div class="options"><div class="opt">A. dsf</div><div class="opt">B. dsf</div><div class="opt">C. adfs</div><div class="opt">D. adsf</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>3.</strong> cxvxv</div>
+  <div class="options"><div class="opt">A. vcx</div><div class="opt">B. cxzv</div><div class="opt">C. xzcv</div><div class="opt">D. zxcxv</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>4.</strong> demo q1</div>
+  <div class="options"><div class="opt">A. uhi</div><div class="opt">B. sadfsdaf</div><div class="opt">C. asdf</div><div class="opt">D. sadf</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+</body>
+</html>

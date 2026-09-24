@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: fimnews_api
+    restart: always
+    environment:
+      NODE_ENV: "production"
+      PORT: 3000
+    volumes:
+      - uploads_data:/app/uploads
+    command: ["npm", "start"]
+
+volumes:
+  uploads_data:
