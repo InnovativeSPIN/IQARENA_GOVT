@@ -43,8 +43,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: false
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 // Serve uploaded files
 import path from 'path';
 app.use('/uploads', (req, res, next) => {
@@ -59,7 +59,7 @@ app.use('/uploads', (req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK',
-    message: 'TMHNU Quiz Server is running',
+    message: 'IQARENA  Quiz Server is running',
     timestamp: new Date().toISOString()
   });
 });
@@ -68,7 +68,7 @@ app.get('/health', (req, res) => {
 app.get('/api/version', (req, res) => {
   res.status(200).json({
     version: '1.0.0',
-    name: 'Govt IQARENA Quiz Application API',
+    name: 'IQARENA Quiz Application API',
     environment: process.env.NODE_ENV || 'development'
   });
 });
@@ -176,7 +176,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`
 ╔════════════════════════════════════════╗
-║   TMHNU Quiz Application Server        ║
+║   IQARENA GOVT Quiz Application Server        ║
 ║   Version: 1.0.0                       ║
 ║   Status: Running                      ║
 ║   Port: ${PORT}                        ║
