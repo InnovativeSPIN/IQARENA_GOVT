@@ -25,7 +25,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  
+  charset: 'utf8mb4',
+  // Ensure Tamil & Unicode text is handled correctly
 });
 
 // Test the connection

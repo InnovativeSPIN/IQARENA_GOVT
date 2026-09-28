@@ -19,25 +19,11 @@ const ensureAllocationTableExists = async (connection) => {
   }
 };
 
-// Ensure NEET and JEE exams exist in exams table
-const ensureExamsExist = async (connection) => {
-  try {
-    // Insert NEET and JEE if they do not exist
-    await connection.execute("INSERT INTO exams (name) SELECT 'NEET' WHERE NOT EXISTS (SELECT 1 FROM exams WHERE name = 'NEET')");
-    await connection.execute("INSERT INTO exams (name) SELECT 'JEE' WHERE NOT EXISTS (SELECT 1 FROM exams WHERE name = 'JEE')");
-    return true;
-  } catch (err) {
-    console.error('Error ensuring exams exist', err);
-    return false;
-  }
-};
 
 export const listSubjects = async (req, res) => {
-  const { exam } = req.query; // exam is a name 'NEET' or 'JEE'
+  const { exam } = req.query; // exam is a name filter (optional)
   try {
     const connection = await pool.getConnection();
-    await ensureExamsExist(connection);
-    await ensureExamsExist(connection);
     const params = [];
     let where = '';
     if (exam) {

@@ -133,7 +133,10 @@ export const importStudents = async (req, res) => {
 
     const results = [];
     fs.createReadStream(req.file.path)
-      .pipe(csvParser())
+      .pipe(csvParser({
+        // Strip BOM and trim whitespace from headers
+        mapHeaders: ({ header }) => header.replace(/^\uFEFF/, '').trim().replace(/\\n/g, '').replace(/\n/g, '').toLowerCase(),
+      }))
       .on('data', (data) => results.push(data))
       .on('end', async () => {
         let imported = 0;
@@ -142,15 +145,27 @@ export const importStudents = async (req, res) => {
 
         for (let i = 0; i < results.length; i++) {
           const row = results[i];
-          const emis_no = row.emis_no?.trim() || row.EMIS?.trim() || row.emis?.trim();
-          const student_name = row.student_name?.trim() || row.name?.trim() || row.Name?.trim();
-          const standard = bodyStandard?.trim() || row.standard?.trim() || row.class?.trim() || row.Class?.trim();
-          const section = bodySection?.trim() || row.section?.trim() || null;
-          const phone = row.phone?.trim() || null;
-          
-          if (!emis_no || !student_name || !standard) {
+
+          // Normalize all keys (trim whitespace and \n from values too)
+          const get = (key) => {
+            for (const k of Object.keys(row)) {
+              if (k.trim().toLowerCase().replace(/\\n/g, '') === key.toLowerCase()) {
+                return typeof row[k] === 'string' ? row[k].trim() : row[k];
+              }
+            }
+            return undefined;
+          };
+
+          const emis_no = get('emis_no') || get('emis') || get('emisno');
+          const student_name = get('student_name') || get('name') || get('studentname');
+          // standard can come from form body or CSV; allow empty and store as null
+          const standard = bodyStandard?.trim() || get('standard') || get('class') || get('std') || null;
+          const section = bodySection?.trim() || get('section') || null;
+          const phone = get('phone') || get('mobile') || get('contact') || null;
+
+          if (!emis_no || !student_name) {
             skipped++;
-            errors.push(`Row ${i + 2}: Missing required fields (EMIS, Name, Standard)`);
+            errors.push(`Row ${i + 2}: Missing required fields (EMIS No, Student Name)`);
             continue;
           }
 
@@ -170,7 +185,7 @@ export const importStudents = async (req, res) => {
         }
 
         // Clean up the uploaded file
-        fs.unlinkSync(req.file.path);
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
 
         res.json({
           success: true,
@@ -179,6 +194,11 @@ export const importStudents = async (req, res) => {
           skipped,
           errors: errors.length > 0 ? errors : undefined
         });
+      })
+      .on('error', (err) => {
+        console.error('CSV parse error:', err);
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        res.status(400).json({ success: false, message: 'Failed to parse CSV file: ' + err.message });
       });
   } catch (error) {
     console.error('Error importing students:', error);

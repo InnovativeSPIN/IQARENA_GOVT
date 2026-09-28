@@ -3,27 +3,58 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import csvParser from 'csv-parser';
 
-// List all users 
+// List all users + unlinked school_students (bulk-uploaded students with no user account)
 export const listUsers = async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    const [rows] = await connection.execute(
-      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
-              CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
-              r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
+
+    // 1. Fetch real users (with school_students join for student details)
+    const [userRows] = await connection.execute(
+      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at,
+              CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status,
+              r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id,
+              e.name as exam_name, ss.emis_no, ss.id as school_student_id,
+              sc.school_name, NULL as is_unlinked
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        LEFT JOIN school_students ss ON ss.user_id = u.id
        LEFT JOIN exams e ON e.id = ss.exam_id
+       LEFT JOIN schools sc ON sc.id = COALESCE(ss.school_id, u.school_id)
        ORDER BY u.id DESC`
     );
+
+    // 2. Fetch school_students that have NO linked user account
+    const [unlinkedRows] = await connection.execute(
+      `SELECT ss.id as school_student_id, ss.emis_no, ss.student_name as name,
+              ss.phone, ss.school_id, ss.standard, ss.section, ss.batch_year, ss.exam_id,
+              e.name as exam_name, sc.school_name,
+              NULL as id, ss.emis_no as userid, NULL as email,
+              ss.created_at, 'active' as status, 'STUDENT' as role,
+              1 as is_unlinked
+       FROM school_students ss
+       LEFT JOIN exams e ON e.id = ss.exam_id
+       LEFT JOIN schools sc ON sc.id = ss.school_id
+       WHERE ss.user_id IS NULL
+       ORDER BY ss.id DESC`
+    );
+
     connection.release();
-    return res.status(200).json({ success: true, users: rows });
+
+    // Combine: real users first, then unlinked school students
+    // Use negative IDs for unlinked records so they don't clash
+    const unlinkedMapped = unlinkedRows.map((r) => ({
+      ...r,
+      id: `ss_${r.school_student_id}`, // prefix to distinguish
+      school_id: r.school_id,
+    }));
+
+    return res.status(200).json({ success: true, users: [...userRows, ...unlinkedMapped] });
   } catch (error) {
     console.error('Error listing users:', error);
     return res.status(500).json({ success: false, message: 'Error listing users', error: error.message });
   }
 };
+
 
 // GET /api/admin/users/:id - get single user by id
 export const getUserById = async (req, res) => {
