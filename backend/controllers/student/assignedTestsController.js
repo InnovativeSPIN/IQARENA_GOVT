@@ -41,9 +41,9 @@ export const getAssignedTests = async (req, res) => {
       console.log('⚠️  Using test student user_id:', studentId);
     }
 
-    // Get student's batch
+    // Get student's batch and school
     const [[studentRow]] = await connection.query(
-      'SELECT batch_id FROM students WHERE user_id = ?',
+      'SELECT batch_id, school_id FROM students WHERE user_id = ?',
       [studentId]
     );
 
@@ -56,6 +56,7 @@ export const getAssignedTests = async (req, res) => {
     }
 
     const batchId = studentRow.batch_id;
+    const schoolId = studentRow.school_id;
 
     const [tests] = await connection.query(
       `SELECT
@@ -67,7 +68,7 @@ export const getAssignedTests = async (req, res) => {
          COALESCE((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0) as totalMarks,
          t.start_time AS startTime,
          t.end_time AS endTime,
-        t.created_at AS createdAt,
+         t.created_at AS createdAt,
          t.status,
          t.mark_publish AS mark_publish,
          e.name AS examType,
@@ -82,9 +83,11 @@ export const getAssignedTests = async (req, res) => {
        JOIN exams e ON t.exam_id = e.id
        LEFT JOIN subjects s ON t.subject_id = s.id
        LEFT JOIN student_test_attempts sta ON sta.test_id = t.id AND sta.student_id = ?
-       WHERE t.batch_id = ? AND t.status = 'published'
+       WHERE (t.batch_id = ? OR t.batch_id IS NULL) 
+         AND t.status = 'published'
+         AND (t.school_ids IS NULL OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$'))
        ORDER BY t.start_time`,
-      [studentId, batchId]
+      [studentId, batchId, schoolId]
     );
 
     // Transform data to match frontend format

@@ -75,16 +75,21 @@ export const getQuestions = async (req, res) => {
       return {
         id: r.id,
         text: r.question_text, // Always return question text
+        textTa: r.question_ta,
         questionText: r.question_text, // Also include questionText for compatibility
         // Return each image field individually if present
         questionImage: r.question_img ? formatImageUrl(r.question_img) : null,
         optionA: r.option_a, // Always return option text (may be empty)
+        optionATa: r.option_a_ta,
         optionAImage: r.img_option_a ? formatImageUrl(r.img_option_a) : null,
         optionB: r.option_b,
+        optionBTa: r.option_b_ta,
         optionBImage: r.img_option_b ? formatImageUrl(r.img_option_b) : null,
         optionC: r.option_c,
+        optionCTa: r.option_c_ta,
         optionCImage: r.img_option_c ? formatImageUrl(r.img_option_c) : null,
         optionD: r.option_d,
+        optionDTa: r.option_d_ta,
         optionDImage: r.img_option_d ? formatImageUrl(r.img_option_d) : null,
         correctAnswer: r.answer,
         answer: r.answer, // Include both for compatibility
@@ -186,15 +191,20 @@ export const getQuestionById = async (req, res) => {
     const question = {
       id: r.id,
       text: r.question_text, // Always return question text
+      textTa: r.question_ta,
       // Return image fields individually so mixed image/text options work
       questionImage: r.question_img ? formatImageUrl(r.question_img) : null,
       optionA: r.option_a, // Always return option text (may be empty)
+      optionATa: r.option_a_ta,
       optionAImage: r.img_option_a ? formatImageUrl(r.img_option_a) : null,
       optionB: r.option_b,
+      optionBTa: r.option_b_ta,
       optionBImage: r.img_option_b ? formatImageUrl(r.img_option_b) : null,
       optionC: r.option_c,
+      optionCTa: r.option_c_ta,
       optionCImage: r.img_option_c ? formatImageUrl(r.img_option_c) : null,
       optionD: r.option_d,
+      optionDTa: r.option_d_ta,
       optionDImage: r.img_option_d ? formatImageUrl(r.img_option_d) : null,
       correctAnswer: r.answer,
       explanation: r.explanation, // Always return text explanation
@@ -559,52 +569,133 @@ export const deleteQuestion = async (req, res) => {
   }
 };
 
-// Bulk upload handler for CSV or JSON files
+// Bulk upload handler — accepts either a multipart file OR a JSON body { rows: [...] }
 export const bulkUploadQuestions = async (req, res) => {
   try {
-    // multer or express-fileupload not configured here; use req.files or req.file depending on middleware
-    // We expect the server to be configured to put the uploaded file at req.file
+    // --- Path 1: JSON body from the preview-confirmed upload ---
+    if (req.body && Array.isArray(req.body.rows)) {
+      const items = req.body.rows;
+      if (items.length === 0) {
+        return res.status(400).json({ success: false, message: 'No rows provided' });
+      }
+      const { subjectId } = req.body;
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
+      const [allTopics] = await connection.execute(`
+        SELECT t.id, t.topic_name, t.subject_id, s.exam_id 
+        FROM topics t 
+        JOIN subjects s ON t.subject_id = s.id
+      `);
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        const topicName = item['Topic'] || item.Topic || '';
+        let tId = null;
+        let tExamId = null;
+        if (topicName) {
+          const matched = allTopics.find(t =>
+            t.topic_name && t.topic_name.toLowerCase() === topicName.toLowerCase()
+          );
+          if (matched) {
+            tId = matched.id;
+            tExamId = matched.exam_id;
+          }
+        }
+        if (!tId) {
+          await connection.rollback();
+          connection.release();
+          return res.status(400).json({ success: false, message: `Unmatched topic '${topicName}' on row ${index + 1}` });
+        }
+        const qTextEn = item['Question (EN)'] || '';
+        const qTextTa = item['Question (TA)'] || '';
+        const optAEn = item['Option A (EN)'] || ''; const optATa = item['Option A (TA)'] || '';
+        const optBEn = item['Option B (EN)'] || ''; const optBTa = item['Option B (TA)'] || '';
+        const optCEn = item['Option C (EN)'] || ''; const optCTa = item['Option C (TA)'] || '';
+        const optDEn = item['Option D (EN)'] || ''; const optDTa = item['Option D (TA)'] || '';
+        const ans = String(item['Answer'] || item.answer || '').toUpperCase();
+        const explanation = item['Explanation'] || item.explanation || '';
+        const marks = Number(item['Marks'] || item.marks || 4);
+        await connection.execute(
+          `INSERT INTO questions (exam_type, topic_id, subtopic_id, question_text, question_ta, option_a, option_a_ta, option_b, option_b_ta, option_c, option_c_ta, option_d, option_d_ta, answer, explanation, marks, created_by_admin, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [tExamId || '', tId, null, qTextEn, qTextTa, optAEn, optATa, optBEn, optBTa, optCEn, optCTa, optDEn, optDTa, ans, explanation, marks, req.adminId || req.user?.id || 1, null]
+        );
+      }
+      await connection.commit();
+      connection.release();
+      return res.status(200).json({ success: true, message: `Imported ${items.length} questions successfully` });
+    }
+
+    // --- Path 2: multipart file upload ---
     const file = req.file || (req.files && req.files.file);
     if (!file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
     // If buffer present (for multer memory storage)
-    let text = '';
-    if (file.buffer) text = file.buffer.toString('utf-8');
-    else if (file.data) text = file.data.toString('utf-8');
+    let fileBuffer = null;
+    if (file.buffer) fileBuffer = file.buffer;
+    else if (file.data) fileBuffer = file.data;
     else if (file.path) {
-      // read from path
       const fs = await import('fs');
-      text = fs.readFileSync(file.path, 'utf-8');
+      fileBuffer = fs.readFileSync(file.path);
     }
 
-    if (!text) {
+    if (!fileBuffer || fileBuffer.length === 0) {
       return res.status(400).json({ success: false, message: 'Uploaded file is empty' });
     }
 
-    // Parse JSON or CSV
+    // Parse XLSX, JSON or CSV based on file extension/mimetype
+    const originalName = (file.originalname || '').toLowerCase();
     const contentType = file.mimetype || '';
     let items = [];
-    if (contentType.includes('json') || file.originalname?.endsWith('.json')) {
+
+    if (
+      originalName.endsWith('.xlsx') ||
+      originalName.endsWith('.xls') ||
+      contentType.includes('spreadsheetml') ||
+      contentType.includes('ms-excel')
+    ) {
+      // Parse XLSX using xlsx library
+      const XLSX = (await import('xlsx')).default || (await import('xlsx'));
+      const workbook = XLSX.read(fileBuffer, { type: 'buffer', codepage: 65001 });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      // header: 1 returns array of arrays; defval ensures empty cells are ''
+      items = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      // Trim whitespace from keys
+      items = items.map(row => {
+        const cleaned = {};
+        for (const [k, v] of Object.entries(row)) {
+          cleaned[k.trim()] = v;
+        }
+        return cleaned;
+      });
+    } else if (contentType.includes('json') || originalName.endsWith('.json')) {
+      const text = fileBuffer.toString('utf-8');
       try {
         items = JSON.parse(text);
       } catch (err) {
         return res.status(400).json({ success: false, message: 'Invalid JSON file' });
       }
     } else {
-      // Simple CSV parser (first line headers)
-      const lines = text.split(/\r?\n/).filter(Boolean);
-      if (lines.length < 2) return res.status(400).json({ success: false, message: 'CSV must have header and at least one row' });
-      const headers = lines[0].split(',').map(h => h.trim());
-      for (let i=1;i<lines.length;i++){
-        const vals = lines[i].split(',');
-        const obj = {};
-        for (let j=0;j<headers.length;j++) {
-          obj[headers[j]] = vals[j] !== undefined ? vals[j] : '';
-        }
-        items.push(obj);
-      }
+      // CSV fallback
+      const text = fileBuffer.toString('utf-8');
+      const { Readable } = await import('stream');
+      const csvParser = (await import('csv-parser')).default || (await import('csv-parser'));
+      
+      items = await new Promise((resolve, reject) => {
+        const results = [];
+        Readable.from([text])
+          .pipe(typeof csvParser === 'function' ? csvParser() : csvParser.default())
+          .on('data', (data) => {
+            const cleanedData = {};
+            for (const [key, value] of Object.entries(data)) {
+              cleanedData[key.trim()] = value;
+            }
+            results.push(cleanedData);
+          })
+          .on('end', () => resolve(results))
+          .on('error', (err) => reject(err));
+      });
     }
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -617,23 +708,46 @@ export const bulkUploadQuestions = async (req, res) => {
     // We support optional form fields examId, subjectId, topicId, subtopicId (apply to all)
     const { examId, subjectId, topicId, subtopicId } = req.body || {};
 
-    for (const raw of items) {
-      const item = { ...raw };
+    // Fetch all topics to map topic names from CSV to topic IDs
+    const [allTopics] = await connection.execute('SELECT id, topic_name, subject_id FROM topics');
+
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const topicName = item.Topic || item.topic || '';
+      
       // Coerce numeric fields
-      const tId = topicId || item.topicId || item.topic_id || null;
+      let tId = topicId || item.topicId || item.topic_id || null;
+      if (!tId && topicName) {
+        // Try to match topic name (case insensitive)
+        const matched = allTopics.find(t => t.topic_name.toLowerCase() === topicName.toLowerCase() && (!subjectId || String(t.subject_id) === String(subjectId)));
+        if (matched) tId = matched.id;
+      }
+      
       const sId = subtopicId || item.subtopicId || item.subtopic_id || null;
-      const qText = item.questionText || item.question || item.question_text || '';
-      const a = item.optionA || item.option_a || '';
-      const b = item.optionB || item.option_b || '';
-      const c = item.optionC || item.option_c || '';
-      const d = item.optionD || item.option_d || '';
-      const ans = item.correctAnswer || item.answer || item.correct_answer || '';
-      const marks = item.marks ? Number(item.marks) : 4;
+      
+      const qTextEn = item['Question (EN)'] || item.questionText || item.question || item.question_text || '';
+      const qTextTa = item['Question (TA)'] || item.question_ta || '';
+      
+      const optAEn = item['Option A (EN)'] || item.optionA || item.option_a || '';
+      const optATa = item['Option A (TA)'] || item.option_a_ta || '';
+      
+      const optBEn = item['Option B (EN)'] || item.optionB || item.option_b || '';
+      const optBTa = item['Option B (TA)'] || item.option_b_ta || '';
+      
+      const optCEn = item['Option C (EN)'] || item.optionC || item.option_c || '';
+      const optCTa = item['Option C (TA)'] || item.option_c_ta || '';
+      
+      const optDEn = item['Option D (EN)'] || item.optionD || item.option_d || '';
+      const optDTa = item['Option D (TA)'] || item.option_d_ta || '';
+      
+      const ans = item.Answer || item.correctAnswer || item.answer || item.correct_answer || '';
+      const explanation = item.Explanation || item.explanation || '';
+      const marks = item.Marks || item.marks ? Number(item.Marks || item.marks) : 4;
 
       if (!tId) {
         await connection.rollback();
         connection.release();
-        return res.status(400).json({ success: false, message: 'Topic ID missing for one or more rows; pass topicId in form or include in file' });
+        return res.status(400).json({ success: false, message: `Topic ID missing or unrecognized Topic Name '${topicName}' for row ${index + 1}` });
       }
 
       // If subtopic provided, validate belongs to topic
@@ -642,14 +756,29 @@ export const bulkUploadQuestions = async (req, res) => {
         if (srows.length === 0 || String(srows[0].topic_id) !== String(tId)) {
           await connection.rollback();
           connection.release();
-          return res.status(400).json({ success: false, message: `Invalid subtopic ${sId} for topic ${tId}` });
+          return res.status(400).json({ success: false, message: `Invalid subtopic ${sId} for topic ${tId} on row ${index + 1}` });
         }
       }
 
-      // Insert question (no image mode by default; image columns kept for consistency)
       await connection.execute(
-        `INSERT INTO questions (topic_id, subtopic_id, question_text, option_a, option_b, option_c, option_d, answer, explanation, marks, created_by_admin, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [tId, sId || null, qText, a, b, c, d, ans, item.explanation || '', marks, req.adminId || req.user?.id || 1, null]
+        `INSERT INTO questions (
+          topic_id, subtopic_id, 
+          question_text, question_ta,
+          option_a, option_a_ta,
+          option_b, option_b_ta,
+          option_c, option_c_ta,
+          option_d, option_d_ta,
+          answer, explanation, marks, created_by_admin, created_by_user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          tId, sId || null, 
+          qTextEn, qTextTa, 
+          optAEn, optATa, 
+          optBEn, optBTa, 
+          optCEn, optCTa, 
+          optDEn, optDTa, 
+          ans, explanation, marks, req.adminId || req.user?.id || 1, null
+        ]
       );
     }
 

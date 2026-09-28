@@ -71,35 +71,55 @@ export const registerUser = async (req, res) => {
       
       // Check if this userId is an EMIS number in school_students
       const [schoolStudentRows] = await connection.execute(
-        'SELECT id, student_name, phone FROM school_students WHERE emis_no = ?',
+        'SELECT id, student_name, phone, school_id FROM school_students WHERE emis_no = ?',
         [userId]
       );
       
       const isSchoolStudent = schoolStudentRows.length > 0;
       const actualName = isSchoolStudent ? schoolStudentRows[0].student_name : (name || '');
-      const actualPhone = isSchoolStudent ? (schoolStudentRows[0].phone || phone || null) : (phone || null);
-
-      const [result] = await connection.execute(
-        'INSERT INTO users (userid, role_id, name, phone, password, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, roleId, actualName, actualPhone, hashedPassword, 1]
-      );
-
-      const newUserId = result.insertId;
       
-      // If they are a school student, link their user_id
-      if (isSchoolStudent) {
-        await connection.execute(
-          'UPDATE school_students SET user_id = ? WHERE emis_no = ?',
-          [newUserId, userId]
-        );
-      }
+      // Only use phone from school_students if it's a real phone (not a 12-digit EMIS number)
+      const rawPhone = isSchoolStudent ? schoolStudentRows[0].phone : null;
+      const isRealPhone = rawPhone && /^\d{10}$/.test(String(rawPhone).trim());
+      const actualPhone = isRealPhone ? rawPhone : (phone && /^\d{10}$/.test(phone.trim()) ? phone.trim() : null);
 
-      const [rows] = await connection.execute(
-        'SELECT id, userid, name, phone FROM users WHERE id = ?',
-        [newUserId]
-      );
-      connection.release();
-      return res.status(201).json({ success: true, message: 'Registration successful', user: rows[0] });
+      try {
+        const [result] = await connection.execute(
+          'INSERT INTO users (userid, role_id, name, phone, password, status) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, roleId, actualName, actualPhone, hashedPassword, 1]
+        );
+
+        const newUserId = result.insertId;
+        
+        // If they are a school student, link their user_id and update school_id on users table
+        if (isSchoolStudent) {
+          await connection.execute(
+            'UPDATE school_students SET user_id = ? WHERE emis_no = ?',
+            [newUserId, userId]
+          );
+          // Also set school_id on user if available
+          if (schoolStudentRows[0].school_id) {
+            await connection.execute('UPDATE users SET school_id = ? WHERE id = ?', [schoolStudentRows[0].school_id, newUserId]);
+          }
+        }
+
+        const [rows] = await connection.execute(
+          `SELECT u.id, u.userid, u.name, u.phone, ss.standard, ss.section, s.school_name
+           FROM users u
+           LEFT JOIN school_students ss ON ss.user_id = u.id
+           LEFT JOIN schools s ON s.id = ss.school_id
+           WHERE u.id = ?`,
+          [newUserId]
+        );
+        connection.release();
+        return res.status(201).json({ success: true, message: 'Registration successful', user: rows[0] });
+      } catch (insertErr) {
+        connection.release();
+        if (insertErr.code === 'ER_DUP_ENTRY') {
+          return res.status(400).json({ success: false, message: 'This User ID is already registered. Please login.' });
+        }
+        throw insertErr;
+      }
     }
 
     const user = users[0];

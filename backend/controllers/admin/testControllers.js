@@ -20,6 +20,9 @@ export const getTests = async (req, res) => {
         t.status,
         t.created_at as createdAt,
         t.created_by as createdBy,
+        t.school_ids as schoolIds,
+        t.is_randomized as isRandomized,
+        t.section_config as sectionConfig,
         e.id as examId,
         e.name as examType,
         s.id as subjectId,
@@ -522,28 +525,40 @@ export const createTest = async (req, res) => {
     const finalTitle = title || `Test - ${new Date().toLocaleString()}`;
     const finalTotalMarks = typeof totalMarks !== 'undefined' ? totalMarks : 0;
 
+    const finalSchoolIds = Array.isArray(req.body.schoolIds) ? JSON.stringify(req.body.schoolIds) : null;
+    const isRandomized = req.body.isRandomized ? 1 : 0;
+    const sectionConfig = isRandomized && hasAlloc ? JSON.stringify(req.body.allocations) : null;
+
     const [result] = await connection.execute(
       `INSERT INTO tests 
-        (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, title, duration_minutes, total_marks, start_time, end_time, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [examId, finalSubjectId, finalAllSubjects, finalTopicId, finalSubtopicId, batchId || null, finalTitle, duration, finalTotalMarks, startTime || null, endTime || null, status, createdBy || null]
+        (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, title, duration_minutes, total_marks, start_time, end_time, status, created_by, school_ids, is_randomized, section_config)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [examId, finalSubjectId, finalAllSubjects, finalTopicId, finalSubtopicId, batchId || null, finalTitle, duration, finalTotalMarks, startTime || null, endTime || null, status, createdBy || null, finalSchoolIds, isRandomized, sectionConfig]
     );
     const testId = result.insertId;
 
-    // If allocations provided in request body, apply them directly (no allocations table)
+    // If allocations provided and NOT randomized at runtime, apply them directly (no allocations table)
     if (hasAlloc) {
-      try {
-        const applyResult = await applyAllocationsToTest(connection, testId, req.body.allocations);
-        await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [applyResult.totalMarks || 0, testId]);
-        allocationResult = applyResult;
+      if (!isRandomized) {
+        try {
+          const applyResult = await applyAllocationsToTest(connection, testId, req.body.allocations);
+          await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [applyResult.totalMarks || 0, testId]);
+          allocationResult = applyResult;
 
+          await connection.commit();
+          connection.release();
+        } catch (allocErr) {
+          await connection.rollback();
+          connection.release();
+          console.error('Allocation error:', allocErr);
+          return res.status(500).json({ success: false, message: 'Failed to allocate questions', error: allocErr.message });
+        }
+      } else {
+        // It's randomized, so calculate total marks manually and commit
+        const computedMarks = req.body.allocations.reduce((acc, a) => acc + ((Number(a.questionCount) || 0) * (Number(a.marksPerQuestion) || 4)), 0);
+        await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [computedMarks, testId]);
         await connection.commit();
         connection.release();
-      } catch (allocErr) {
-        await connection.rollback();
-        connection.release();
-        console.error('Allocation error:', allocErr);
-        return res.status(500).json({ success: false, message: 'Failed to allocate questions', error: allocErr.message });
       }
     } else {
       connection.release();
@@ -1845,6 +1860,22 @@ export const getTestReport = async (req, res) => {
       [id]
     );
     
+    // Get school-wise statistics
+    const [schoolWiseStats] = await connection.execute(
+      `SELECT 
+        sc.name as schoolName,
+        COUNT(DISTINCT sta.student_id) as totalStudents,
+        COUNT(DISTINCT CASE WHEN sta.status = 'completed' THEN sta.student_id END) as completedStudents,
+        AVG(CASE WHEN sta.status = 'completed' THEN sta.score END) as averageScore
+      FROM student_test_attempts sta
+      JOIN students s ON sta.student_id = s.user_id
+      JOIN schools sc ON s.school_id = sc.id
+      WHERE sta.test_id = ?
+      GROUP BY sc.id, sc.name
+      ORDER BY averageScore DESC`,
+      [id]
+    );
+
     connection.release();
     
     const reportData = stats[0];
@@ -1875,7 +1906,8 @@ export const getTestReport = async (req, res) => {
           range: d.scoreRange,
           count: d.count,
           percentage: Math.round((d.count / reportData.completedStudents) * 100 * 10) / 10
-        }))
+        })),
+        schoolWise: schoolWiseStats
       }
     });
   } catch (error) {
@@ -1953,5 +1985,51 @@ export const getTestReportPdf = async (req, res) => {
   } catch (error) {
     console.error('Error generating test report PDF:', error);
     return res.status(500).json({ success: false, message: 'Error generating report PDF', error: error.message });
+  }
+};
+
+export const retestTest = async (req, res) => {
+  const { id } = req.params;
+  const { startTime, endTime } = req.body;
+  
+  try {
+    const connection = await pool.getConnection();
+    const [[test]] = await connection.execute('SELECT * FROM tests WHERE id = ?', [id]);
+    
+    if (!test) {
+      connection.release();
+      return res.status(404).json({ success: false, message: 'Original test not found' });
+    }
+    
+    // Copy test details
+    const newTitle = test.title + ' (Retest)';
+    const newStartTime = startTime || test.start_time;
+    const newEndTime = endTime || test.end_time;
+    
+    await connection.beginTransaction();
+    
+    const [result] = await connection.execute(
+      `INSERT INTO tests 
+        (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, title, duration_minutes, total_marks, start_time, end_time, status, created_by, school_ids, is_randomized, section_config, parent_test_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [test.exam_id, test.subject_id, test.all_subjects, test.topic_id, test.subtopic_id, test.batch_id, newTitle, test.duration_minutes, test.total_marks, newStartTime, newEndTime, 'published', test.created_by, test.school_ids, test.is_randomized, test.section_config, id]
+    );
+    const newTestId = result.insertId;
+    
+    // If it is NOT randomized, copy existing questions exactly
+    if (!test.is_randomized) {
+      const [questions] = await connection.execute('SELECT question_id FROM test_questions WHERE test_id = ?', [id]);
+      for (let q of questions) {
+        await connection.execute('INSERT INTO test_questions (test_id, question_id) VALUES (?, ?)', [newTestId, q.question_id]);
+      }
+    }
+    
+    await connection.commit();
+    connection.release();
+    
+    return res.status(201).json({ success: true, message: 'Retest created successfully', testId: newTestId });
+  } catch(e) {
+    console.error('Error creating retest:', e);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };

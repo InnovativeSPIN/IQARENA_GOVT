@@ -164,7 +164,7 @@ export const getTestForStudent = async (req, res) => {
 
         // Now select questions in the stored order
         const [qOrdered] = await connection.query(
-          `SELECT q.id, q.question_text as questionText, q.use_img as useImg, q.option_a as optionA, q.option_b as optionB, q.option_c as optionC, q.option_d as optionD, q.answer, q.marks, t.topic_name as topicName
+          `SELECT q.id, q.question_text as questionText, q.question_ta as questionTextTa, q.use_img as useImg, q.option_a as optionA, q.option_a_ta as optionATa, q.option_b as optionB, q.option_b_ta as optionBTa, q.option_c as optionC, q.option_c_ta as optionCTa, q.option_d as optionD, q.option_d_ta as optionDTa, q.answer, q.marks, t.topic_name as topicName
            FROM student_test_attempt_questions staq
            JOIN questions q ON staq.question_id = q.id
            LEFT JOIN topics t ON q.topic_id = t.id
@@ -190,7 +190,7 @@ export const getTestForStudent = async (req, res) => {
           if (childTestIds.length > 0) {
             const placeholders = childTestIds.map(() => '?').join(', ');
             const [rows] = await connection.query(
-              `SELECT DISTINCT q.id, q.question_text as questionText, q.use_img as useImg, q.option_a as optionA, q.option_b as optionB, q.option_c as optionC, q.option_d as optionD, q.answer, q.marks, t.topic_name as topicName
+              `SELECT DISTINCT q.id, q.question_text as questionText, q.question_ta as questionTextTa, q.use_img as useImg, q.option_a as optionA, q.option_a_ta as optionATa, q.option_b as optionB, q.option_b_ta as optionBTa, q.option_c as optionC, q.option_c_ta as optionCTa, q.option_d as optionD, q.option_d_ta as optionDTa, q.answer, q.marks, t.topic_name as topicName
                FROM test_questions tq
                JOIN questions q ON tq.question_id = q.id
                LEFT JOIN topics t ON q.topic_id = t.id
@@ -203,7 +203,7 @@ export const getTestForStudent = async (req, res) => {
         } else {
           // Normal test - get questions from this test
           const [rows] = await connection.query(
-            `SELECT q.id, q.question_text as questionText, q.use_img as useImg, q.option_a as optionA, q.option_b as optionB, q.option_c as optionC, q.option_d as optionD, q.answer, q.marks, t.topic_name as topicName
+            `SELECT q.id, q.question_text as questionText, q.question_ta as questionTextTa, q.use_img as useImg, q.option_a as optionA, q.option_a_ta as optionATa, q.option_b as optionB, q.option_b_ta as optionBTa, q.option_c as optionC, q.option_c_ta as optionCTa, q.option_d as optionD, q.option_d_ta as optionDTa, q.answer, q.marks, t.topic_name as topicName
              FROM test_questions tq
              JOIN questions q ON tq.question_id = q.id
              LEFT JOIN topics t ON q.topic_id = t.id
@@ -417,9 +417,42 @@ export const startTestAttempt = async (req, res) => {
     // Fetch questions for this test and randomize order
     let qIds = [];
 
-    // Check if this is a combined test
-    const [[testInfo]] = await connection.query('SELECT all_subjects, parent_test_id FROM tests WHERE id = ?', [testId]);
-    if (testInfo && testInfo.all_subjects === 1 && testInfo.parent_test_id === null) {
+    // Check if this is a combined test or randomized
+    const [[testInfo]] = await connection.query('SELECT all_subjects, parent_test_id, is_randomized, section_config FROM tests WHERE id = ?', [testId]);
+    
+    if (testInfo && testInfo.is_randomized && testInfo.section_config) {
+      let config = [];
+      try {
+        config = typeof testInfo.section_config === 'string' ? JSON.parse(testInfo.section_config) : testInfo.section_config;
+      } catch(e) {
+        console.error('Failed to parse section_config', e);
+      }
+      
+      for (const a of config) {
+        const sId = a.subjectId;
+        const tId = a.topicId;
+        const stId = a.subtopicId;
+        const desired = Number(a.questionCount) || 0;
+        
+        let candidateQuery;
+        let cparams = [];
+        if (stId) {
+          candidateQuery = `SELECT q.id FROM questions q WHERE q.subtopic_id = ? ORDER BY RAND() LIMIT ?`;
+          cparams = [stId, desired];
+        } else if (tId) {
+          candidateQuery = `SELECT q.id FROM questions q WHERE q.topic_id = ? ORDER BY RAND() LIMIT ?`;
+          cparams = [tId, desired];
+        } else if (sId) {
+          candidateQuery = `SELECT q.id FROM questions q JOIN topics top ON q.topic_id = top.id WHERE top.subject_id = ? ORDER BY RAND() LIMIT ?`;
+          cparams = [sId, desired];
+        }
+        
+        if (candidateQuery) {
+          const [candRows] = await connection.execute(candidateQuery, cparams);
+          qIds.push(...candRows.map(r => r.id));
+        }
+      }
+    } else if (testInfo && testInfo.all_subjects === 1 && testInfo.parent_test_id === null) {
       // This is a combined test - get questions from all child tests
       const [childTests] = await connection.query(
         'SELECT id FROM tests WHERE parent_test_id = ?',
