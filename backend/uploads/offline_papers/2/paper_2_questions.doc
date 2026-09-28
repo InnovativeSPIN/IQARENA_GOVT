@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Paper - 27/01/2026</title>
+
+<style>
+  @page { size: A4; margin: 25mm; }
+
+  body {
+    font-family: "Times New Roman", serif;
+    font-size: 14pt;
+    line-height: 1.6;
+    color: #000;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 20pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta {
+    text-align: center;
+    font-size: 12pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta-right {
+    text-align: right;
+    font-size: 11pt;
+    margin-bottom: 8mm;
+    color: #333;
+  }
+
+  .question {
+    margin-bottom: 18mm;
+    page-break-inside: avoid;
+  }
+
+  .q-text {
+    margin-bottom: 6mm;
+    font-weight: 500;
+  }
+
+  .options {
+    margin-top: 4mm;
+    margin-bottom: 10mm;
+  }
+
+  .opt {
+    display: block;
+    margin-bottom: 4mm;
+  }
+
+  .answer-space {
+    border-bottom: 1px solid #000;
+    height: 14mm;
+    margin-top: 6mm;
+    padding-top: 2mm;
+  }
+
+</style>
+</head>
+
+<body>
+<h1>Paper - 27/01/2026</h1>
+
+<div class="meta">
+  Duration: 10 Minutes
+   | 
+  Total Marks: 40
+</div>
+
+<div class="meta-right">
+  Tamil History
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>1.</strong> [19] Which is the largest continent by area?</div>
+  <div class="options"><div class="opt">A. Europe</div><div class="opt">B. Africa</div><div class="opt">C. North America</div><div class="opt">D. Asia</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>2.</strong> [29] In which year did India gain independence?</div>
+  <div class="options"><div class="opt">A. 1945</div><div class="opt">B. 1947</div><div class="opt">C. 1950</div><div class="opt">D. 1942</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>3.</strong> [24] Which dynasty is known for Dravidian culture and temple architecture?</div>
+  <div class="options"><div class="opt">A. Chola</div><div class="opt">B. Pandya</div><div class="opt">C. Pallava</div><div class="opt">D. Chalukya</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>4.</strong> [33] GDP (Gross Domestic Product) measures...</div>
+  <div class="options"><div class="opt">A. Population income</div><div class="opt">B. Total value of goods and services produced annually</div><div class="opt">C. Inflation rate</div><div class="opt">D. Total wealth of a country</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>5.</strong> [33] Who built the Taj Mahal?</div>
+  <div class="options"><div class="opt">A. Akbar</div><div class="opt">B. Shah Jahan</div><div class="opt">C. Aurangzeb</div><div class="opt">D. Babar</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>6.</strong> [27] Who built the Taj Mahal?</div>
+  <div class="options"><div class="opt">A. Babar</div><div class="opt">B. Shah Jahan</div><div class="opt">C. Akbar</div><div class="opt">D. Aurangzeb</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>7.</strong> [29] Who was the founder of the Mauryan Empire?</div>
+  <div class="options"><div class="opt">A. Ashoka</div><div class="opt">B. Harsha</div><div class="opt">C. Chandragupta Maurya</div><div class="opt">D. Samudragupta</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>8.</strong> [12] Which dynasty is known for Dravidian culture and temple architecture?</div>
+  <div class="options"><div class="opt">A. Pallava</div><div class="opt">B. Chalukya</div><div class="opt">C. Chola</div><div class="opt">D. Pandya</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>9.</strong> [28] Which is the largest continent by area?</div>
+  <div class="options"><div class="opt">A. North America</div><div class="opt">B. Asia</div><div class="opt">C. Europe</div><div class="opt">D. Africa</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+<div class="question">
+  <div class="q-text"><strong>10.</strong> [18] In which year did India gain independence?</div>
+  <div class="options"><div class="opt">A. 1945</div><div class="opt">B. 1947</div><div class="opt">C. 1950</div><div class="opt">D. 1942</div></div>
+  <div class="answer-space">Ans: _______________</div>
+</div>
+
+</body>
+</html>

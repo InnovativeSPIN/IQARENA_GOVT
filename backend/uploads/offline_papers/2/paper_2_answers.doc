@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Answer Key - Paper - 27/01/2026</title>
+
+<style>
+  body {
+    font-family: "Times New Roman", serif;
+    font-size: 14pt;
+    margin: 25mm;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 20pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta {
+    text-align: center;
+    font-size: 12pt;
+    margin-bottom: 6mm;
+  }
+
+  .meta-right {
+    text-align: right;
+    font-size: 11pt;
+    margin-bottom: 8mm;
+    color: #333;
+  }
+
+  .question {
+    margin-bottom: 10mm;
+  }
+
+  .options {
+    margin-top: 4mm;
+  }
+
+  .opt {
+    margin-right: 12mm;
+    display: inline-block;
+  }
+
+  .correct {
+    font-weight: bold;
+    text-decoration: underline;
+  }
+
+  .answer {
+    margin-top: 4mm;
+    font-weight: bold;
+  }
+</style>
+</head>
+
+<body>
+<h1>Answer Key – Paper - 27/01/2026</h1>
+
+<div class="meta">
+  Duration: 10 Minutes
+   | 
+  Total Marks: 40
+</div>
+
+<div class="meta-right">
+  Tamil History
+</div>
+
+<div class="question">
+  <strong>1.</strong> [19] Which is the largest continent by area?
+  <div class="options"><span class="opt">A. Europe</span><span class="opt">B. Africa</span><span class="opt">C. North America</span><span class="opt correct">D. Asia</span></div>
+  <div class="answer">Answer: D</div>
+</div>
+
+<div class="question">
+  <strong>2.</strong> [29] In which year did India gain independence?
+  <div class="options"><span class="opt">A. 1945</span><span class="opt correct">B. 1947</span><span class="opt">C. 1950</span><span class="opt">D. 1942</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+<div class="question">
+  <strong>3.</strong> [24] Which dynasty is known for Dravidian culture and temple architecture?
+  <div class="options"><span class="opt correct">A. Chola</span><span class="opt">B. Pandya</span><span class="opt">C. Pallava</span><span class="opt">D. Chalukya</span></div>
+  <div class="answer">Answer: A</div>
+</div>
+
+<div class="question">
+  <strong>4.</strong> [33] GDP (Gross Domestic Product) measures...
+  <div class="options"><span class="opt">A. Population income</span><span class="opt correct">B. Total value of goods and services produced annually</span><span class="opt">C. Inflation rate</span><span class="opt">D. Total wealth of a country</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+<div class="question">
+  <strong>5.</strong> [33] Who built the Taj Mahal?
+  <div class="options"><span class="opt">A. Akbar</span><span class="opt correct">B. Shah Jahan</span><span class="opt">C. Aurangzeb</span><span class="opt">D. Babar</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+<div class="question">
+  <strong>6.</strong> [27] Who built the Taj Mahal?
+  <div class="options"><span class="opt">A. Babar</span><span class="opt correct">B. Shah Jahan</span><span class="opt">C. Akbar</span><span class="opt">D. Aurangzeb</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+<div class="question">
+  <strong>7.</strong> [29] Who was the founder of the Mauryan Empire?
+  <div class="options"><span class="opt">A. Ashoka</span><span class="opt">B. Harsha</span><span class="opt correct">C. Chandragupta Maurya</span><span class="opt">D. Samudragupta</span></div>
+  <div class="answer">Answer: C</div>
+</div>
+
+<div class="question">
+  <strong>8.</strong> [12] Which dynasty is known for Dravidian culture and temple architecture?
+  <div class="options"><span class="opt">A. Pallava</span><span class="opt">B. Chalukya</span><span class="opt correct">C. Chola</span><span class="opt">D. Pandya</span></div>
+  <div class="answer">Answer: C</div>
+</div>
+
+<div class="question">
+  <strong>9.</strong> [28] Which is the largest continent by area?
+  <div class="options"><span class="opt">A. North America</span><span class="opt correct">B. Asia</span><span class="opt">C. Europe</span><span class="opt">D. Africa</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+<div class="question">
+  <strong>10.</strong> [18] In which year did India gain independence?
+  <div class="options"><span class="opt">A. 1945</span><span class="opt correct">B. 1947</span><span class="opt">C. 1950</span><span class="opt">D. 1942</span></div>
+  <div class="answer">Answer: B</div>
+</div>
+
+</body>
+</html>

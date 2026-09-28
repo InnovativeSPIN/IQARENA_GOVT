@@ -8,6 +8,7 @@ router.get('/', controllers.getTests);
 router.get('/:id', controllers.getTestById);
 router.post('/', controllers.createTest);
 router.put('/:id', controllers.updateTest);
+router.post('/:id/retest', controllers.retestTest);
 router.delete('/:id', controllers.deleteTest);
 
 // Test status
