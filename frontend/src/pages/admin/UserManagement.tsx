@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import Papa from 'papaparse';
 import {
   Search,
   Plus,
@@ -9,6 +10,7 @@ import {
   Trash2,
   UserCheck,
   UserX,
+  Upload,
   X,
   Key,
 } from 'lucide-react';
@@ -52,17 +54,16 @@ type User = {
   email?: string;
   role: UserRole;
   status: UserStatus;
-  batchId?: string;
+  schoolId?: string;
+  standard?: string;
+  section?: string;
+  batchYear?: string;
+  examId?: string;
+  examName?: string;
   createdAt?: Date;
 };
 
-type Batch = {
-  id: string;
-  name: string;
-  examType: 'NEET' | 'JEE' | ''; 
-  status?: 'active' | 'inactive';
-  studentCount?: number;
-};
+
 
 type ApiUser = {
   id: number;
@@ -71,18 +72,16 @@ type ApiUser = {
   phone?: string;
   email?: string;
   role?: string;
-  batchName?: string | null;
-  batch_id?: number | null;
+  school_id?: number | null;
+  standard?: string | null;
+  section?: string | null;
+  batch_year?: string | null;
+  exam_id?: number | null;
+  exam_name?: string | null;
   created_at?: string;
 };
 
-type ApiBatch = {
-  id: number;
-  batch_name?: string | null;
-  exam_name?: 'NEET' | 'JEE' | null;
-  status?: number | null;
-  total_students?: number | null;
-};
+
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -94,20 +93,32 @@ export default function UserManagement() {
     role: 'student' as UserRole,
     email: '',
     phone: '',
-    batchId: '',
+    school_id: '',
+    standard: '',
+    section: '',
+    batchYear: '',
+    examId: '',
     status: 'active' as 'active' | 'inactive',
   });
   const [selectedForEdit, setSelectedForEdit] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole>('student');
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all');
-  const [examFilter, setExamFilter] = useState<'all' | 'NEET' | 'JEE'>('all');
-  const [batchFilter, setBatchFilter] = useState<'all' | string>('all');
+  const [examFilter, setExamFilter] = useState<'all' | string>('all');
+  const [classFilter, setClassFilter] = useState<'all' | string>('all');
+  const [schoolFilter, setSchoolFilter] = useState<'all' | string>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
-  const [batchForm, setBatchForm] = useState({ name: '', examType: 'NEET' as 'NEET' | 'JEE' });
-  const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
+
+  
+  const [schools, setSchools] = useState<any[]>([]);
+  const [examTypes, setExamTypes] = useState<any[]>([]);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [bulkUploadTab, setBulkUploadTab] = useState<'student' | 'faculty'>('student');
+  const [bulkForm, setBulkForm] = useState({ school_id: '', standard: '', section: '', batch_year: '', exam_id: '' });
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkPreviewData, setBulkPreviewData] = useState<any[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const roleColors: Record<UserRole, string> = {
     admin: 'bg-primary/10 text-primary border-primary/20',
@@ -122,58 +133,15 @@ export default function UserManagement() {
 
   useEffect(() => {
     const init = async () => {
-      await fetchBatches();
+      await fetchSchools();
+      await fetchExamTypes();
       await loadUsers();
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Ensure batches are fresh when opening the Create User dialog
-  useEffect(() => {
-    if (!isCreateOpen) return;
-    // re-fetch to ensure latest batches are available for selection
-    fetchBatches().catch((err) => console.warn('Failed to refresh batches on dialog open', err));
-  }, [isCreateOpen]);
 
-  const fetchBatches = async () => {
-    try {
-      let res: any;
-      try {
-        res = await apiFetch('/batches');
-      } catch (err) {
-        // fallback to explicit /api path (useful when VITE_API_URL is not set)
-        const fallback = await fetch('/api/batches');
-        res = await fallback.json();
-      }
-
-      if (res?.success && Array.isArray(res.batches)) {
-        const normalized: Batch[] = res.batches.map((b: ApiBatch) => {
-          const batchName = String(b.batch_name || '').toLowerCase();
-          let examType: 'NEET' | 'JEE' | '' = '';
-          if (batchName.includes('neet')) examType = 'NEET';
-          else if (batchName.includes('jee')) examType = 'JEE';
-          // if API provides exam_id or exam type, prefer that
-          if (b.exam_name && (b.exam_name === 'NEET' || b.exam_name === 'JEE')) {
-            examType = b.exam_name;
-          }
-          return {
-            id: String(b.id),
-            name: b.batch_name || `batch-${b.id}`,
-            examType,
-            status: b.status === 1 ? 'active' : 'inactive',
-            studentCount: b.total_students ?? 0,
-          };
-        });
-        setBatches(normalized);
-      } else {
-        setBatches([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch batches:', err);
-      setBatches([]);
-    }
-  };
 
   // Load users and map into our local User type
   const loadUsers = async () => {
@@ -182,17 +150,6 @@ export default function UserManagement() {
       const data = await apiFetch('/admin/users');
       if (data?.success && Array.isArray(data.users)) {
         const mapped: User[] = data.users.map((u: ApiUser) => {
-          let batchId: string | undefined;
-          
-          // First try to use batch_id from API
-          if (u.batch_id !== null && u.batch_id !== undefined) {
-            batchId = String(u.batch_id);
-          } else if (u.batchName) {
-            // Fallback: try to map batchName to batchId
-            const found = batches.find((b) => b.name === u.batchName);
-            batchId = found ? found.id : undefined;
-          }
-
           return {
             id: String(u.id),
             userid: u.userid,
@@ -201,7 +158,12 @@ export default function UserManagement() {
             phone: u.phone || '',
             role: (u.role || 'student').toLowerCase() as UserRole,
             status: 'active',
-            batchId,
+            schoolId: u.school_id ? String(u.school_id) : undefined,
+            standard: u.standard || undefined,
+            section: u.section || undefined,
+            batchYear: u.batch_year || undefined,
+            examId: u.exam_id ? String(u.exam_id) : undefined,
+            examName: u.exam_name || undefined,
             createdAt: u.created_at ? new Date(u.created_at) : new Date(),
           };
         });
@@ -228,12 +190,18 @@ export default function UserManagement() {
     }
   };
 
-  const refreshUsers = async () => {
-    await fetchBatches();
-    await loadUsers();
+  const fetchSchools = async () => {
+    try {
+      const res = await apiFetch('/admin/schools');
+      if (res?.success) setSchools(res.schools || []);
+    } catch (err) {
+      console.error('Failed to fetch schools:', err);
+    }
   };
 
-  const getBatchById = useCallback((id?: string) => batches.find((b) => b.id === id), [batches]);
+  const refreshUsers = async () => {
+    await loadUsers();
+  };
 
   const userCounts = useMemo(() => ({
     all: users.length,
@@ -267,23 +235,25 @@ export default function UserManagement() {
       }
 
       if (user.role === 'student') {
-        // Determine exam type from batch
-        const batch = getBatchById(user.batchId);
-        const batchExam = batch?.examType ?? '';
-        if (examFilter !== 'all' && batchExam !== examFilter) return false;
-        if (batchFilter !== 'all' && user.batchId !== batchFilter) return false;
+        if (examFilter !== 'all' && user.examId !== examFilter) return false;
+        if (classFilter !== 'all' && user.standard !== classFilter) return false;
+        if (schoolFilter !== 'all' && user.schoolId !== schoolFilter) return false;
       }
-      // for admin/faculty we ignore exam/batch filters
+      // for admin/faculty we ignore exam/class filters, but faculty might have schoolFilter
+      if (user.role === 'faculty') {
+        if (schoolFilter !== 'all' && user.schoolId !== schoolFilter) return false;
+      }
       return true;
     });
-  }, [users, searchQuery, roleFilter, statusFilter, examFilter, batchFilter, getBatchById]);
+  }, [users, searchQuery, roleFilter, statusFilter, examFilter, classFilter, schoolFilter]);
 
   const clearFilters = () => {
     setSearchQuery('');
     setRoleFilter('student');
     setStatusFilter('all');
     setExamFilter('all');
-    setBatchFilter('all');
+    setClassFilter('all');
+    setSchoolFilter('all');
   };
 
   // Create / Edit user handler
@@ -311,9 +281,14 @@ export default function UserManagement() {
       return;
     }
     
-    // Validate batch for students
-    if (createForm.role === 'student' && !createForm.batchId) {
-      alert('Batch is required for students');
+    // Validate student
+    if (createForm.role === 'student' && (!createForm.school_id || !createForm.standard || !createForm.batchYear || !createForm.examId)) {
+      alert('School, Class, Batch Year, and Exam are required for students');
+      return;
+    }
+
+    if (createForm.role === 'faculty' && !createForm.school_id) {
+      alert('School is required for Faculty');
       return;
     }
     
@@ -325,8 +300,12 @@ export default function UserManagement() {
         role: createForm.role,
         email: createForm.email || null,
         phone: createForm.phone || null,
-        password: selectedForEdit ? null : '203040', // Default password only for new users
-        batchId: createForm.batchId ? Number(createForm.batchId) : null,
+        password: selectedForEdit ? null : (createForm.role === 'student' ? null : '203040'), // Default password only for new admin/faculty
+        school_id: createForm.school_id ? Number(createForm.school_id) : null,
+        standard: createForm.standard || null,
+        section: createForm.section || null,
+        batch_year: createForm.batchYear || null,
+        exam_id: createForm.examId ? Number(createForm.examId) : null,
         status: createForm.status || 'active',
       };
 
@@ -342,7 +321,7 @@ export default function UserManagement() {
 
       if (res?.success) {
         setIsCreateOpen(false);
-        setCreateForm({ userid: '', name: '', role: 'student', email: '', phone: '', batchId: '', status: 'active' });
+        setCreateForm({ userid: '', name: '', role: 'student', email: '', phone: '', school_id: '', standard: '', section: '', batchYear: '', examId: '', status: 'active' });
         setSelectedForEdit(null);
         await refreshUsers();
         alert(`User ${selectedForEdit ? 'updated' : 'created'} successfully!${!selectedForEdit ? ' Default password: 203040' : ''}`);
@@ -392,63 +371,112 @@ export default function UserManagement() {
     }
   };
 
-  const handleCreateBatch = async (e: React.FormEvent) => {
+
+
+  const handlePreview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!batchForm.name.trim()) {
-      alert('Batch name is required');
-      return;
+    if (bulkUploadTab === 'student') {
+      if (!bulkFile || !bulkForm.school_id || !bulkForm.standard || !bulkForm.batch_year || !bulkForm.exam_id) {
+        alert('Please fill all required fields and select a CSV file');
+        return;
+      }
+    } else {
+      if (!bulkFile) {
+        alert('Please select a CSV file for Faculty upload');
+        return;
+      }
     }
-    setIsBatchSubmitting(true);
+
+    Papa.parse(bulkFile, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.errors.length) {
+          console.error(results.errors);
+          alert('Error parsing CSV file');
+          return;
+        }
+        
+        let processedData = results.data;
+        if (bulkUploadTab === 'student') {
+           const school = schools.find(s => String(s.id) === bulkForm.school_id);
+           processedData = results.data.map((row: any) => ({
+             ...row,
+             emis_no: row.emis_no || row.EMIS || row.emis || '',
+             student_name: row.student_name || row.name || row.Name || '',
+             school_name: school ? school.school_name : '',
+             class: bulkForm.standard,
+             phone: row.phone || ''
+           }));
+        }
+        
+        setBulkPreviewData(processedData);
+        setIsBulkUploadOpen(false);
+        setIsPreviewOpen(true);
+      }
+    });
+  };
+
+  const confirmBulkUpload = async () => {
+    setIsBulkUploading(true);
     try {
-      const res = await apiFetch('/batches', {
+      // Unparse the preview data back to CSV
+      const csvString = Papa.unparse(bulkPreviewData);
+      const newBlob = new Blob([csvString], { type: 'text/csv' });
+      const newFile = new File([newBlob], bulkFile?.name || 'edited.csv', { type: 'text/csv' });
+
+      const form = new FormData();
+      form.append('file', newFile);
+      
+      if (bulkUploadTab === 'student') {
+        form.append('standard', bulkForm.standard);
+        if (bulkForm.section) form.append('section', bulkForm.section);
+        form.append('batch_year', bulkForm.batch_year);
+        form.append('exam_id', bulkForm.exam_id);
+      }
+      
+      const token = localStorage.getItem('token');
+      const endpoint = bulkUploadTab === 'student' 
+        ? `/api/admin/schools/${bulkForm.school_id}/students/import`
+        : `/api/admin/users/import-faculty`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
-        body: JSON.stringify({
-          batch_name: batchForm.name,
-          exam_name: batchForm.examType,
-          status: 1,
-        }),
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: form
       });
-      if (res?.success) {
-        await fetchBatches();
-        setIsBatchDialogOpen(false);
-        setBatchForm({ name: '', examType: '' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setIsPreviewOpen(false);
+        setBulkFile(null);
+        setBulkForm({ school_id: '', standard: '', section: '', batch_year: '', exam_id: '' });
+        loadUsers();
       } else {
-        console.error('Batch creation failed', res);
-        alert('Failed to create batch');
+        alert(data.message || 'Bulk upload failed');
       }
     } catch (err) {
-      console.error('Create batch error', err);
-      alert('Failed to create batch');
+      console.error('Bulk upload error', err);
+      alert('Bulk upload failed');
     } finally {
-      setIsBatchSubmitting(false);
+      setIsBulkUploading(false);
     }
   };
 
-  const handleDeleteBatch = async (batch: Batch) => {
-    if (!confirm(`Delete batch "${batch.name}"? This action cannot be undone.`)) return;
-    try {
-      const res = await apiFetch(`/batches/${batch.id}`, { method: 'DELETE' });
-      if (res?.success) {
-        await fetchBatches();
-        await refreshUsers();
-      } else {
-        alert('Failed to delete batch');
-      }
-    } catch (err) {
-      console.error('Delete batch failed', err);
-      alert('Failed to delete batch');
-    }
-  };
+
 
   const hasActiveFilters = useMemo(() => {
     return (
       searchQuery !== '' ||
       roleFilter !== 'student' ||
       statusFilter !== 'all' ||
-      batchFilter !== 'all' ||
-      examFilter !== 'all'
+      classFilter !== 'all' ||
+      examFilter !== 'all' ||
+      schoolFilter !== 'all'
     );
-  }, [searchQuery, roleFilter, statusFilter, batchFilter, examFilter]);
+  }, [searchQuery, roleFilter, statusFilter, classFilter, examFilter, schoolFilter]);
 
   return (
     <AdminLayout>
@@ -460,7 +488,173 @@ export default function UserManagement() {
           </div>
 
           <div className="flex gap-2">
-              {/* Batch Management removed from User Management header */}
+            {/* Bulk Upload Dialog */}
+            <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Bulk Upload Users
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Bulk Upload Users</DialogTitle>
+                  <DialogDescription asChild>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <div className="flex gap-2 mb-4">
+                        <Button 
+                          type="button"
+                          variant={bulkUploadTab === 'student' ? 'default' : 'outline'} 
+                          size="sm" 
+                          onClick={() => setBulkUploadTab('student')}
+                          className="rounded-full px-6"
+                        >
+                          Students
+                        </Button>
+                        <Button 
+                          type="button"
+                          variant={bulkUploadTab === 'faculty' ? 'default' : 'outline'} 
+                          size="sm" 
+                          onClick={() => setBulkUploadTab('faculty')}
+                          className="rounded-full px-6"
+                        >
+                          Faculty
+                        </Button>
+                      </div>
+                      
+                      {bulkUploadTab === 'student' ? (
+                        <>
+                          Upload a CSV file to add multiple students at once. <br />
+                          <a 
+                            href="data:text/csv;charset=utf-8,emis_no,student_name,phone,section\n" 
+                            download="student_template.csv"
+                            className="text-primary underline hover:text-primary/80 mt-1 inline-block"
+                          >
+                            Download Student Template
+                          </a>
+                        </>
+                      ) : (
+                        <>
+                          Upload a CSV file to add multiple faculty members to a school. <br />
+                          <a 
+                            href="data:text/csv;charset=utf-8,udise_code,faculty_name,phone,email\n" 
+                            download="faculty_template.csv"
+                            className="text-primary underline hover:text-primary/80 mt-1 inline-block"
+                          >
+                            Download Faculty Template
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handlePreview} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {bulkUploadTab === 'student' && (
+                      <div className="space-y-2 col-span-2">
+                        <Label>School *</Label>
+                        <Select value={bulkForm.school_id} onValueChange={(v) => setBulkForm(p => ({ ...p, school_id: v }))} required>
+                          <SelectTrigger><SelectValue placeholder="Select school" /></SelectTrigger>
+                          <SelectContent>
+                            {schools.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.school_name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {bulkUploadTab === 'student' && (
+                      <div className="space-y-2 col-span-2">
+                        <Label>Exam Type *</Label>
+                        <Select value={bulkForm.exam_id} onValueChange={(v) => setBulkForm(p => ({ ...p, exam_id: v }))} required>
+                          <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                          <SelectContent>
+                            {examTypes.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  {bulkUploadTab === 'student' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Class/Standard *</Label>
+                          <Input value={bulkForm.standard} onChange={(e) => setBulkForm(p => ({ ...p, standard: e.target.value }))} placeholder="e.g., 12" required />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Section</Label>
+                          <Input value={bulkForm.section} onChange={(e) => setBulkForm(p => ({ ...p, section: e.target.value }))} placeholder="e.g., A" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Batch Year *</Label>
+                        <Input value={bulkForm.batch_year} onChange={(e) => setBulkForm(p => ({ ...p, batch_year: e.target.value }))} placeholder="e.g., 2025" required />
+                      </div>
+                    </>
+                  )}
+                  <div className="space-y-2 pt-2">
+                    <Label>CSV File * {bulkUploadTab === 'student' ? '(Columns: emis_no, student_name)' : '(Columns: udise_code, faculty_name)'}</Label>
+                    <Input type="file" accept=".csv" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} required />
+                  </div>
+                  <div className="flex justify-end pt-4">
+                    <Button type="submit">Preview Data</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Preview Dialog */}
+            <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Preview & Edit Upload Data</DialogTitle>
+                  <DialogDescription>
+                    Verify and edit the data before confirming the upload.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-auto border rounded-md mt-4">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted sticky top-0 text-muted-foreground">
+                      <tr>
+                        {bulkPreviewData.length > 0 && Object.keys(bulkPreviewData[0]).map((key) => (
+                          <th key={key} className="px-4 py-2 font-medium capitalize">
+                            {key.replace('_', ' ')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkPreviewData.map((row, i) => (
+                        <tr key={i} className="border-b hover:bg-muted/50 transition-colors">
+                          {Object.keys(row).map((key) => (
+                            <td key={key} className="px-4 py-2">
+                              <Input 
+                                value={row[key]} 
+                                onChange={(e) => {
+                                  const newData = [...bulkPreviewData];
+                                  newData[i][key] = e.target.value;
+                                  setBulkPreviewData(newData);
+                                }}
+                                className="h-8 text-sm"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                      {bulkPreviewData.length === 0 && (
+                        <tr>
+                          <td className="px-4 py-4 text-center text-muted-foreground">No data found in CSV</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end pt-4 mt-auto">
+                  <Button onClick={confirmBulkUpload} disabled={isBulkUploading || bulkPreviewData.length === 0}>
+                    {isBulkUploading ? 'Uploading...' : 'Confirm & Upload'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* Add User Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -480,7 +674,7 @@ export default function UserManagement() {
 
               <form className="space-y-4 mt-4" onSubmit={handleCreateUser}>
                 <div className="space-y-2">
-                  <Label htmlFor="userid">User ID <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="userid">User ID / UDISE ID <span className="text-destructive">*</span></Label>
                   <Input
                     id="userid"
                     placeholder="e.g., 333, STU001, etc."
@@ -559,32 +753,69 @@ export default function UserManagement() {
                   />
                 </div>
 
-                {createForm.role === 'student' && (
+                {createForm.role === 'faculty' && (
                   <div className="space-y-2">
-                    <Label htmlFor="batch">Batch <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="school">School (SPOC) <span className="text-destructive">*</span></Label>
                     <Select
-                      value={createForm.batchId}
-                      onValueChange={(v) => setCreateForm((p) => ({ ...p, batchId: v }))}
+                      value={createForm.school_id}
+                      onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))}
                       required
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select batch" />
+                        <SelectValue placeholder="Select school" />
                       </SelectTrigger>
                       <SelectContent>
-                        {batches.length === 0 ? (
-                          <SelectItem value="__none" disabled>No batches available</SelectItem>
+                        {schools.length === 0 ? (
+                          <SelectItem value="__none" disabled>No schools available</SelectItem>
                         ) : (
-                          batches.map((batch) => (
-                            <SelectItem key={batch.id} value={batch.id}>
-                              {batch.name} {batch.examType ? `(${batch.examType})` : ''}
+                          schools.map((school) => (
+                            <SelectItem key={school.id} value={String(school.id)}>
+                              {school.school_name}
                             </SelectItem>
                           ))
                         )}
                       </SelectContent>
                     </Select>
-                    {batches.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Create a batch first using "Manage Batches" button</p>
-                    )}
+                  </div>
+                )}
+
+                {createForm.role === 'student' && (
+                  <div className="space-y-4 border-t pt-4 mt-4 border-b pb-4">
+                    <h3 className="font-semibold text-sm">Student Details</h3>
+                    <div className="space-y-2">
+                      <Label>School <span className="text-destructive">*</span></Label>
+                      <Select value={createForm.school_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))} required>
+                        <SelectTrigger><SelectValue placeholder="Select school" /></SelectTrigger>
+                        <SelectContent>
+                          {schools.length === 0 ? <SelectItem value="__none" disabled>No schools</SelectItem> : schools.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.school_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Exam Type <span className="text-destructive">*</span></Label>
+                        <Select value={createForm.examId} onValueChange={(v) => setCreateForm(p => ({ ...p, examId: v }))} required>
+                          <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                          <SelectContent>
+                            {examTypes.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Batch Year <span className="text-destructive">*</span></Label>
+                        <Input value={createForm.batchYear} onChange={(e) => setCreateForm(p => ({ ...p, batchYear: e.target.value }))} placeholder="e.g., 2025" required />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Class/Standard <span className="text-destructive">*</span></Label>
+                        <Input value={createForm.standard} onChange={(e) => setCreateForm(p => ({ ...p, standard: e.target.value }))} placeholder="e.g., 12" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Section</Label>
+                        <Input value={createForm.section} onChange={(e) => setCreateForm(p => ({ ...p, section: e.target.value }))} placeholder="e.g., A" />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -625,7 +856,11 @@ export default function UserManagement() {
                         role: 'student',
                         email: '',
                         phone: '',
-                        batchId: '',
+                        school_id: '',
+                        standard: '',
+                        section: '',
+                        batchYear: '',
+                        examId: '',
                         status: 'active',
                       });
                     }}
@@ -643,7 +878,7 @@ export default function UserManagement() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-4 items-center py-2">
+        <div className="flex flex-wrap gap-4 items-center bg-white/50 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex gap-2">
             {[
               { label: 'Admin', value: 'admin' as UserRole, count: userCounts.admin },
@@ -657,7 +892,6 @@ export default function UserManagement() {
                 onClick={() => {
                   setRoleFilter(r.value);
                   setExamFilter('all');
-                  setBatchFilter('all');
                 }}
               >
                 {r.label} <span className="ml-2 text-xs font-normal">({r.count})</span>
@@ -665,13 +899,33 @@ export default function UserManagement() {
             ))}
           </div>
 
+          {(roleFilter === 'student' || roleFilter === 'faculty') && (
+            <div className="flex items-center gap-2">
+              <Select value={schoolFilter} onValueChange={(v) => setSchoolFilter(v)}>
+                <SelectTrigger className="w-[250px] rounded-xl border-gray-200 bg-white shadow-sm">
+                  <SelectValue placeholder="Filter by School" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Schools</SelectItem>
+                  {schools.map((school) => (
+                    <SelectItem key={school.id} value={String(school.id)}>
+                      {school.school_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {roleFilter === 'student' && (
             <>
-              <div className="flex gap-2">
-                        {[
-                            { label: 'All', value: 'all' as const, count: userCounts.student },
-                            { label: 'NEET', value: 'NEET' as const, count: users.filter((u) => u.role === 'student' && getBatchById(u.batchId)?.examType === 'NEET').length },
-                            { label: 'JEE', value: 'JEE' as const, count: users.filter((u) => u.role === 'student' && getBatchById(u.batchId)?.examType === 'JEE').length },
+              <div className="flex gap-2 flex-wrap">
+                        {[{ label: 'All', value: 'all', count: users.filter(u => u.role === 'student' && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length },
+                          ...examTypes.map((et: any) => ({
+                            label: et.name,
+                            value: String(et.id),
+                            count: users.filter((u) => u.role === 'student' && u.examId === String(et.id) && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length
+                          }))
                           ].map((e) => (
                             <Button
                               key={e.value}
@@ -684,34 +938,21 @@ export default function UserManagement() {
                           ))}
               </div>
 
-              <div className="flex items-center gap-2">
-                <Label className="text-sm font-medium">Batch:</Label>
-                <Select value={batchFilter} onValueChange={(v) => setBatchFilter(v)}>
-                  <SelectTrigger className="w-[320px]">
-                    <SelectValue placeholder="Select batch" />
+              <div className="flex items-center gap-2 mt-2">
+                <Label className="text-sm font-medium">Class:</Label>
+                <Select value={classFilter} onValueChange={(v) => setClassFilter(v)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select class" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">
-                       All Batches ({users.filter((u) => u.role === 'student').length} students)
+                       All Classes ({users.filter((u) => u.role === 'student').length} students)
                     </SelectItem>
-                    {batches
-                      .filter((b) => (examFilter === 'all' ? true : b.examType === examFilter))
-                      .sort((a, b) => {
-                        const yearA = extractYear(a.name);
-                        const yearB = extractYear(b.name);
-                        if (yearA !== yearB) return yearB.localeCompare(yearA);
-                        return a.examType.localeCompare(b.examType);
-                      })
-                      .map((batch) => {
-                        const batchStudentCount = users.filter((u) => u.role === 'student' && u.batchId === batch.id).length;
-                        const year = extractYear(batch.name);
-                        const icon = batch.examType === 'NEET' ? '🩺' : batch.examType === 'JEE' ? '⚙️' : '📖';
-                        return (
-                          <SelectItem key={batch.id} value={batch.id}>
-                            {icon} {batch.name.toUpperCase()} {year && `(${year})`} • {batch.examType} • {batchStudentCount} students
-                          </SelectItem>
-                        );
-                      })}
+                    {Array.from(new Set(users.filter(u => u.role === 'student' && u.standard).map(u => u.standard))).sort().map(std => (
+                      <SelectItem key={String(std)} value={String(std)}>
+                         Class {std}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -786,10 +1027,10 @@ export default function UserManagement() {
                 </button>
               </Badge>
             )}
-            {batchFilter !== 'all' && (
+            {classFilter !== 'all' && (
               <Badge variant="secondary" className="gap-1">
-                Batch: {getBatchById(batchFilter)?.name || batchFilter}
-                <button onClick={() => setBatchFilter('all')} className="ml-1 hover:bg-background/50 rounded-full p-0.5">
+                Class: {classFilter}
+                <button onClick={() => setClassFilter('all')} className="ml-1 hover:bg-background/50 rounded-full p-0.5">
                   <X className="w-3 h-3" />
                 </button>
               </Badge>
@@ -830,7 +1071,7 @@ export default function UserManagement() {
                   <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Contact</th>
                   <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Role</th>
                   <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Status</th>
-                  <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Batch</th>
+                  <th className="text-left text-sm font-medium text-muted-foreground px-6 py-4">Class/Exam</th>
                   <th className="text-right text-sm font-medium text-muted-foreground px-6 py-4">Actions</th>
                 </tr>
               </thead>
@@ -885,10 +1126,17 @@ export default function UserManagement() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
-                      {user.batchId ? (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {getBatchById(user.batchId)?.name || user.batchId}
-                        </Badge>
+                      {user.role === 'student' && user.standard ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 w-fit">
+                            Class {user.standard} {user.section ? `- ${user.section}` : ''}
+                          </Badge>
+                          {user.examName && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 w-fit text-xs">
+                              {user.examName}
+                            </Badge>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
@@ -910,7 +1158,11 @@ export default function UserManagement() {
                                         role: user.role,
                                         email: user.email || '',
                                         phone: user.phone || '',
-                                        batchId: user.batchId || '',
+                                        school_id: user.schoolId || '',
+                                        standard: user.standard || '',
+                                        section: user.section || '',
+                                        batchYear: user.batchYear || '',
+                                        examId: String(user.examId) || '',
                                         status: user.status || 'active',
                                       });
                               setIsCreateOpen(true);

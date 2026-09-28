@@ -23,7 +23,7 @@ export default function Login() {
   const [signupUserId, setSignupUserId] = useState('');
   const [signupName, setSignupName] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
-  const [signupFetched, setSignupFetched] = useState<{ name: string; phone: string } | null>(null);
+  const [signupFetched, setSignupFetched] = useState<{ name: string; phone: string; school_name?: string; standard?: string; section?: string; } | null>(null);
   const [signupFetchLoading, setSignupFetchLoading] = useState(false);
   const [signupPin, setSignupPin] = useState(['', '', '', '', '', '']);
   const signupPinRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -331,17 +331,17 @@ export default function Login() {
                     </h2>
                   </div>
 
-                  {/* User ID Input */}
+                  {/* User ID / Email Input */}
                   <div className="space-y-2">
                     <Label htmlFor="userId" className="text-base font-semibold text-gray-700">
-                      User ID
+                      User ID / Email
                     </Label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500" />
                       <Input
                         id="userId"
                         type="text"
-                        placeholder="Enter your User ID"
+                        placeholder="Enter your User ID or Email"
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
                         className="pl-12 h-12 sm:h-14 text-base border-2 border-orange-200 focus:border-orange-500 rounded-xl"
@@ -381,7 +381,12 @@ export default function Login() {
                       {isLoading ? 'Logging In...' : 'Login'}
                     </Button>
                   </div>
-                  {/* Login is also automatic when all fields are filled */}
+                  <div className="pt-2 flex justify-center text-sm text-gray-600">
+                    Don't have an account? 
+                    <button type="button" onClick={() => setIsLogin(false)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
+                      Sign Up
+                    </button>
+                  </div>
                 </form>
               ) : (
                 /* Signup Form */
@@ -429,14 +434,14 @@ export default function Login() {
 
                   <div className="space-y-1">
                     <Label htmlFor="signupUserId" className="text-xs font-semibold text-gray-700">
-                      User ID
+                      User ID / Email
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500" />
                       <Input
                         id="signupUserId"
                         type="text"
-                        placeholder="Enter or choose a User ID"
+                        placeholder="Enter your User ID or Email"
                         value={signupUserId}
                         onChange={(e) => setSignupUserId(e.target.value)}
                         className="pl-10 h-10 text-sm border-2 border-orange-200 focus:border-orange-500 rounded-lg"
@@ -445,6 +450,14 @@ export default function Login() {
                     </div>
                     {signupFetchLoading && signupUserId.trim() && (
                       <div className="mt-2 text-xs text-orange-500">Fetching...</div>
+                    )}
+                    {signupFetched && signupFetched.school_name && (
+                      <div className="mt-2 p-2 bg-orange-50 rounded text-xs text-orange-800">
+                        <strong>School:</strong> {signupFetched.school_name} <br/>
+                        {signupFetched.standard && (
+                          <><strong>Class:</strong> {signupFetched.standard} {signupFetched.section ? ` - ${signupFetched.section}` : ''}</>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -516,7 +529,12 @@ export default function Login() {
                       {isLoading ? 'Signing Up...' : 'Sign Up'}
                     </Button>
                   </div>
-                  {/* Signup is also automatic when all fields are filled */}
+                  <div className="pt-2 flex justify-center text-sm text-gray-600">
+                    Already have an account? 
+                    <button type="button" onClick={() => setIsLogin(true)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
+                      Login
+                    </button>
+                  </div>
                 </form>
               )}
             </div>

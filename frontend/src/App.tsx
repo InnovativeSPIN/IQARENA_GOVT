@@ -9,7 +9,6 @@ import { FacultyAuthProvider } from "@/contexts/FacultyAuthContext";
 
 // Admin Pages
 import Login from "./pages/Login";
-import BatchManagement from "./pages/admin/BatchManagement";
 import Dashboard from "./pages/admin/Dashboard";
 import UserManagement from "./pages/admin/UserManagement";
 import ExamManagement from "./pages/admin/ExamManagement";
@@ -96,8 +95,6 @@ function AppRoutes() {
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><Dashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><UserManagement /></ProtectedRoute>} />
       
-      {/* ADDED: Batch Management Route */}
-      <Route path="/admin/batches" element={<ProtectedRoute allowedRoles={['ADMIN']}><BatchManagement /></ProtectedRoute>} />
       <Route path="/admin/schools" element={<ProtectedRoute allowedRoles={['ADMIN']}><SchoolManagement /></ProtectedRoute>} />
       <Route path="/admin/exams" element={<ProtectedRoute allowedRoles={['ADMIN']}><ExamManagement /></ProtectedRoute>} />
       

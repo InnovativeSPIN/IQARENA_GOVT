@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
-  { icon: UserCheck, label: 'Batch Management', path: '/admin/batches' },
   { icon: Building, label: 'School Management', path: '/admin/schools' },
   { icon: BookOpen, label: 'Exam Management', path: '/admin/exams' },
   { icon: Layers, label: 'Subject Management', path: '/admin/subjects' },
