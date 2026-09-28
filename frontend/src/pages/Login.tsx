@@ -251,7 +251,7 @@ export default function Login() {
                 {/* Logo - completely transparent without white box background */}
                 <div className="flex items-center justify-center">
                   <img 
-                    src="/iqlogo.png" 
+                    src="/iqlogo.jpeg" 
                     alt="IQ Arena Logo" 
                     className="h-24 sm:h-28 w-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.25)] hover:scale-105 transition-transform duration-300" 
                   />
