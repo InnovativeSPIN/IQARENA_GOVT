@@ -310,11 +310,15 @@ CREATE TABLE `school_students` (
   `status` tinyint(1) DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `batch_year` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `exam_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_emis` (`emis_no`),
   KEY `idx_ss_school` (`school_id`),
   KEY `idx_ss_user` (`user_id`),
   KEY `idx_ss_standard` (`standard`),
+  KEY `fk_ss_exam` (`exam_id`),
+  CONSTRAINT `fk_ss_exam` FOREIGN KEY (`exam_id`) REFERENCES `exams` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_ss_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_ss_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -771,6 +775,7 @@ CREATE TABLE `users` (
   `id` int NOT NULL AUTO_INCREMENT,
   `userid` text NOT NULL,
   `role_id` int NOT NULL,
+  `school_id` int DEFAULT NULL,
   `name` varchar(100) NOT NULL,
   `phone` varchar(15) DEFAULT NULL,
   `email` varchar(150) DEFAULT NULL,
@@ -782,8 +787,10 @@ CREATE TABLE `users` (
   UNIQUE KEY `phone` (`phone`),
   UNIQUE KEY `email` (`email`),
   KEY `role_id` (`role_id`),
+  KEY `fk_user_school` (`school_id`),
+  CONSTRAINT `fk_user_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -792,7 +799,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (10,'2005',1,'ADMIN','6369800645','admin@nscet.org','$2a$10$Nm71XPDKnT3iB5xuTlrTPOWjegHdk66XteDFdlsRzl69gOb5fca6a',1,'2025-12-10 03:21:42','2026-09-25 09:06:03'),(12,'9210',2,'FACULTY','6369800649','FACULTY@nscet.org','$2a$10$nf4Kv8PCGfAGNuEAGVkcR.v.eCWh/ejKs1OMAGMKzpOzeS6VZy6kO',1,'2025-12-10 03:21:42','2025-12-12 16:19:26'),(14,'921022104041',3,'Sachithanandan S','+919677810500','sachin308204@gmail.com','$2a$10$O96H5Swy7ttNsuv7lW.2n.YnpXcIsoWKL0y5NJK1OLyPbGNnEwz8G',1,'2025-12-13 16:07:40','2025-12-13 16:07:40'),(15,'921022243011',3,'Keerthana T','8220394487','keerthanathiruppathi29@gmail.com','$2a$10$qJHK0XC5H1yiRgLLuSGur.NwuC/jkC3W2VLXU4pRSUp/4CwKQjlTC',1,'2025-12-13 16:10:28','2025-12-13 16:10:28'),(16,'921022104033',3,'Joshika P','9959290861','joshikapalasai@gmail.com','$2a$10$Kw1/SWi156tmQSFK0fs/AeRZC6qjWmU3FjAFiGGxX/5Nnpg3SD7eK',1,'2025-12-13 16:11:37','2025-12-15 05:31:32'),(17,'921022205021',3,'Srihari Prasath','8838159937','hari54stark@gmail.com','$2a$10$wl9IJ7TidZFnrXfOIsneTOP8pav5BhfefQ/unFDXNWkeOj9rGnhvO',1,'2025-12-13 16:12:51','2026-09-25 09:14:39'),(18,'921022205001',3,'AASWIN','8680935830','aaswinjs@gmail.com','$2a$10$GyVp/q/mM3CqScHyTJJJ7O3hmxVxSwE.MzgJ7XPeva7vOB1HInlyC',1,'2025-12-15 05:17:24','2025-12-15 05:17:24'),(19,'921022104038',3,'RAVINTHAR','8772734216','ravinthar@gmail.com','$2a$10$n0f5/W9urb9y5lEGoL8YAu3pSUtMUlM9o4tdmly7JxgsRdnwy1DWq',1,'2025-12-15 05:18:11','2025-12-15 05:18:11'),(21,'mark',3,'mark','1234567890','mark@gmai.com','$2a$10$KttD0RHja7Qwv9KBIviFKepZ1JNqXlKnVnm/Yktalp5dltAtRxiXG',1,'2026-01-07 07:55:18','2026-09-25 09:18:24'),(27,'92102',1,'Thanush Kumar','9876543210','thanush@example.com','123456',1,'2026-09-24 16:55:58','2026-09-24 16:58:04');
+INSERT INTO `users` VALUES (10,'2005',1,NULL,'ADMIN','6369800645','admin@nscet.org','$2a$10$Nm71XPDKnT3iB5xuTlrTPOWjegHdk66XteDFdlsRzl69gOb5fca6a',1,'2025-12-10 03:21:42','2026-09-25 09:06:03'),(12,'9210',2,NULL,'FACULTY','6369800649','FACULTY@nscet.org','$2a$10$nf4Kv8PCGfAGNuEAGVkcR.v.eCWh/ejKs1OMAGMKzpOzeS6VZy6kO',1,'2025-12-10 03:21:42','2025-12-12 16:19:26'),(14,'921022104041',3,NULL,'Sachithanandan S','+919677810500','sachin308204@gmail.com','$2a$10$O96H5Swy7ttNsuv7lW.2n.YnpXcIsoWKL0y5NJK1OLyPbGNnEwz8G',1,'2025-12-13 16:07:40','2025-12-13 16:07:40'),(15,'921022243011',3,NULL,'Keerthana T','8220394487','keerthanathiruppathi29@gmail.com','$2a$10$qJHK0XC5H1yiRgLLuSGur.NwuC/jkC3W2VLXU4pRSUp/4CwKQjlTC',1,'2025-12-13 16:10:28','2025-12-13 16:10:28'),(16,'921022104033',3,NULL,'Joshika P','9959290861','joshikapalasai@gmail.com','$2a$10$Kw1/SWi156tmQSFK0fs/AeRZC6qjWmU3FjAFiGGxX/5Nnpg3SD7eK',1,'2025-12-13 16:11:37','2025-12-15 05:31:32'),(17,'921022205021',3,NULL,'Srihari Prasath','8838159937','hari54stark@gmail.com','$2a$10$wl9IJ7TidZFnrXfOIsneTOP8pav5BhfefQ/unFDXNWkeOj9rGnhvO',1,'2025-12-13 16:12:51','2026-09-25 09:14:39'),(18,'921022205001',3,NULL,'AASWIN','8680935830','aaswinjs@gmail.com','$2a$10$GyVp/q/mM3CqScHyTJJJ7O3hmxVxSwE.MzgJ7XPeva7vOB1HInlyC',1,'2025-12-15 05:17:24','2025-12-15 05:17:24'),(19,'921022104038',3,NULL,'RAVINTHAR','8772734216','ravinthar@gmail.com','$2a$10$n0f5/W9urb9y5lEGoL8YAu3pSUtMUlM9o4tdmly7JxgsRdnwy1DWq',1,'2025-12-15 05:18:11','2025-12-15 05:18:11'),(21,'mark',3,NULL,'mark','1234567890','mark@gmai.com','$2a$10$KttD0RHja7Qwv9KBIviFKepZ1JNqXlKnVnm/Yktalp5dltAtRxiXG',1,'2026-01-07 07:55:18','2026-09-25 09:18:24'),(27,'92102',1,NULL,'Thanush Kumar','9876543210','thanush@example.com','123456',1,'2026-09-24 16:55:58','2026-09-24 16:58:04'),(28,'88494984984',2,2,'THANUSH','9384114714','thanush@gmail.com','$2a$10$139GFZe828QZVOgOASF4ve/htjM3BFyTQ2GWV4B9EQexNqMPPcQS6',1,'2026-09-28 06:15:08','2026-09-28 06:22:48');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -832,4 +839,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-28 10:41:59
+-- Dump completed on 2026-09-28 13:27:59
