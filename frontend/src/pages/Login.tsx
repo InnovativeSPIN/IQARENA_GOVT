@@ -199,72 +199,93 @@ export default function Login() {
   }, [signupUserId, signupName, signupPhone, signupPin]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated Background Elements */}
+    <div className="min-h-screen bg-gradient-to-br from-amber-50/70 via-orange-50/50 to-orange-100/80 flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
+      {/* Background IQ Arena watermark / logo */}
+      <div 
+        className="absolute inset-0 pointer-events-none bg-no-repeat bg-center bg-contain opacity-[0.05] select-none scale-75"
+        style={{ backgroundImage: `url('/iqlogo.png')` }}
+      />
+
+      {/* Subtle Animated Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-2 w-40 h-40 bg-orange-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob sm:top-20 sm:left-10 sm:w-72 sm:h-72"></div>
-        <div className="absolute top-24 right-2 w-40 h-40 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000 sm:top-40 sm:right-10 sm:w-72 sm:h-72"></div>
-        <div className="absolute -bottom-4 left-4 w-40 h-40 bg-orange-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000 sm:-bottom-8 sm:left-20 sm:w-72 sm:h-72"></div>
+        <div className="absolute -top-16 -left-16 w-80 h-80 sm:w-96 sm:h-96 bg-orange-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
+        <div className="absolute -bottom-16 -right-16 w-80 h-80 sm:w-96 sm:h-96 bg-amber-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      {/* Main Container */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-orange-200">
+      <div className="w-full max-w-5xl mx-auto flex flex-col items-center gap-5 sm:gap-6 z-10 my-auto">
+        {/* TOP HEADER: Tamil Nadu Govt & NSCET Collaboration Header */}
+        <header className="w-full">
+          <div className="bg-white/90 backdrop-blur-md border border-orange-200/90 shadow-lg shadow-orange-500/5 rounded-2xl px-5 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-4">
+            {/* Left: TN Govt Emblem & Department Details */}
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <img 
+                src="/tn-govt-logo.png" 
+                alt="Government of Tamil Nadu" 
+                className="h-14 sm:h-16 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105 duration-300" 
+              />
+              <div className="flex flex-col">
+                <span className="text-xs sm:text-sm font-bold tracking-wider text-orange-950 uppercase">
+                  தமிழ்நாடு அரசு | Government of Tamil Nadu
+                </span>
+                <span className="text-sm sm:text-base font-extrabold text-orange-700 leading-tight">
+                  பள்ளிக்கல்வித்துறை - தேனி மாவட்டம்
+                </span>
+                <span className="text-[11px] sm:text-xs text-gray-600 font-medium">
+                  Department of School Education - Theni District
+                </span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Card Container */}
+        <div className="w-full bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-orange-200/90">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* Left Panel - Branding */}
-            <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 p-12 flex flex-col justify-center items-center text-white relative overflow-hidden">
+            <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 p-8 sm:p-12 flex flex-col justify-between items-center text-white relative overflow-hidden min-h-[460px]">
               {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32 pointer-events-none"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24 pointer-events-none"></div>
               
-              <div className="relative z-10 text-center space-y-6">
-                {/* Logo */}
-                <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-lg shadow-xl mb-4 transform hover:scale-110 transition-transform duration-300">
-                  <img src={logo} alt="App Logo" className='w-30' />
+              <div className="relative z-10 w-full flex flex-col items-center justify-center my-auto text-center space-y-6">
+                {/* Logo - completely transparent without white box background */}
+                <div className="flex items-center justify-center">
+                  <img 
+                    src="/iqlogo.png" 
+                    alt="IQ Arena Logo" 
+                    className="h-24 sm:h-28 w-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.25)] hover:scale-105 transition-transform duration-300" 
+                  />
                 </div>
                 
-                {/* App Name */}
+                {/* App Name & Subtitle */}
                 <div>
-                  <h1 className="text-5xl font-bold mb-3 tracking-tight">
-                    {appName}
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-2 tracking-tight drop-shadow-sm">
+                    IQARENA
                   </h1>
-                  <div className="h-1 w-24 bg-white/50 mx-auto rounded-full"></div>
+                 
+                  <div className="h-1 w-20 bg-white/60 mx-auto rounded-full mt-3"></div>
                 </div>
                 
-                <p className="text-xl text-orange-100 font-medium">
-                  Online Exam Management Platform
+                <p className="text-sm sm:text-base text-orange-100/90 font-medium max-w-sm">
+                  State Online Exam & Assessment Management Portal
                 </p>
 
-                {/* Motivational Quote */}
-                <div className="mt-12 space-y-6">
-                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                    <blockquote className="text-center">
-                      <p className="text-lg text-white italic mb-3">
-                        "Education is the passport to the future, for tomorrow belongs to those who prepare for it today."
-                      </p>
-                      <footer className="text-orange-200 text-sm">
-                        — Malcolm X
-                      </footer>
-                    </blockquote>
-                  </div>
-                  
-                  {/* Image Placeholder */}
-                  <div className="flex justify-center">
-                    <img 
-                      src="/login-illustration.png" 
-                      alt="Online Learning" 
-                      className="w-full max-w-xs rounded-2xl shadow-2xl opacity-90 hover:opacity-100 transition-opacity"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
+                {/* Quote Box */}
+                <div className="w-full max-w-md bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/20 shadow-inner">
+                  <blockquote className="text-center">
+                    <p className="text-sm sm:text-base text-white font-medium italic mb-1.5">
+                      "கற்க கசடறக் கற்பவை கற்றபின் <br className="hidden sm:inline" /> நிற்க அதற்குத் தக."
+                    </p>
+                    <footer className="text-orange-200 text-xs sm:text-sm font-semibold">
+                      — திருக்குறள் (குறள் 391)
+                    </footer>
+                  </blockquote>
                 </div>
               </div>
             </div>
 
             {/* Right Panel - Form */}
-            <div className="p-12 flex flex-col justify-center">
+            <div className="p-8 sm:p-12 flex flex-col justify-center">
               {/* Tab Switcher */}
               <div className="flex gap-2 mb-8 p-1 ">
                 {/* <button
