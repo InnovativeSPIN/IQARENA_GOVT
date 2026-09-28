@@ -84,7 +84,7 @@ export default function ExamManagement() {
         <form onSubmit={handleCreate} className="flex gap-2 mb-4">
           <input
             className="flex-1 border px-3 py-2 rounded"
-            placeholder="Exam name (e.g. NEET)"
+            placeholder="Exam name (e.g. NMMS, TRUST)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required

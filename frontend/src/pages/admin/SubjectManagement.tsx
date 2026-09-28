@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Plus,
@@ -60,15 +61,11 @@ export default function SubjectManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [examTab, setExamTab] = useState<string>('');
   const [exams, setExams] = useState<Array<{ id: number; name: string }>>([]);
-  const [isExamManageOpen, setIsExamManageOpen] = useState(false);
-  const [newExamName, setNewExamName] = useState<string>('');
-  const [isAddingExam, setIsAddingExam] = useState(false);
-  const [examAddError, setExamAddError] = useState<string>('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [mainTab, setMainTab] = useState<string>('subjects');
   const [openDialogId, setOpenDialogId] = useState<string | null>(null);
   const [createFormName, setCreateFormName] = useState('');
-  const [createFormExam, setCreateFormExam] = useState<string>('NEET');
+  const [createFormExam, setCreateFormExam] = useState<string>('');
   const [editSubject, setEditSubject] = useState<Subject | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
@@ -83,6 +80,8 @@ export default function SubjectManagement() {
     const matchesExam = subject.examType === examTab;
     return matchesSearch && matchesExam;
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     const init = async () => {
@@ -270,7 +269,7 @@ export default function SubjectManagement() {
         {/* Header */}
         <div className="page-header">
           <h1 className="page-title">Subject & Exam Management</h1>
-          <p className="page-subtitle">Manage subjects and exam configurations for NEET and JEE</p>
+          <p className="page-subtitle">Manage subjects and exam configurations for Exams</p>
         </div>
 
         {/* Main Tabs - Subject Management vs Exam Settings vs Faculty Allocation */}
@@ -306,7 +305,7 @@ export default function SubjectManagement() {
                   <DialogHeader>
                     <DialogTitle>Add New Subject</DialogTitle>
                     <DialogDescription>
-                      Create a new subject under NEET or JEE
+                      Create a new subject and link it to an exam
                     </DialogDescription>
                   </DialogHeader>
                   <form className="space-y-4 mt-4" onSubmit={async (e) => {
@@ -336,7 +335,7 @@ export default function SubjectManagement() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="examType">Exam Type</Label>
-                        <Button variant="ghost" size="sm" onClick={() => setIsExamManageOpen(true)}>Manage Exams</Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/admin/exams')}>Manage Exams</Button>
                       </div>
                       <Select value={createFormExam} onValueChange={(v) => setCreateFormExam(v)}>
                         <SelectTrigger>
@@ -366,7 +365,7 @@ export default function SubjectManagement() {
                   </form>
                 </DialogContent>
               </Dialog>
-              <Button variant="outline" onClick={() => setIsExamManageOpen(true)}>Add / Manage Exams</Button>
+              <Button variant="outline" onClick={() => navigate('/admin/exams')}>Add / Manage Exams</Button>
             </div>
 
               {/* Edit Subject Dialog */}
@@ -570,87 +569,7 @@ export default function SubjectManagement() {
         </Tabs>
       </TabsContent>
 
-      {/* Exam Management Dialog */}
-      <Dialog open={isExamManageOpen} onOpenChange={setIsExamManageOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Manage Exams</DialogTitle>
-            <DialogDescription>Add or remove exams (limited to enum values)</DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4 mt-4">
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const trimmed = String(newExamName || '').trim();
-              if (!trimmed) { setExamAddError('Exam name is required'); return; }
-              const nameUpper = trimmed.toUpperCase().slice(0, 100);
-              // prevent duplicates client-side
-              if (exams.some(ex => String(ex.name).toUpperCase() === nameUpper)) { setExamAddError('Exam already exists'); return; }
-
-              setIsAddingExam(true);
-              setExamAddError('');
-              try {
-                await apiFetch('/admin/meta/exams', { method: 'POST', body: JSON.stringify({ name: nameUpper }) });
-                // refresh exams and subjects (sanitize list)
-                const exRes = await apiFetch('/admin/meta/exams');
-                if (exRes?.success && Array.isArray(exRes.exams)) {
-                  const cleaned = (exRes.exams || []).map((e: any) => ({ id: e.id, name: (e.name || '').toString().trim().toUpperCase() })).filter((e: any) => e.name);
-                  setExams(cleaned);
-                }
-                const subRes = await apiFetch('/admin/subjects');
-                if (subRes?.success) setSubjects(subRes.subjects || []);
-                setNewExamName('');
-              } catch (err: any) {
-                console.error('Failed to add exam', err);
-                setExamAddError(err.message || 'Failed to add exam');
-              } finally {
-                setIsAddingExam(false);
-              }
-            }}>
-              <div className="space-y-2">
-                <Label htmlFor="newExam">Exam name</Label>
-                <Input id="newExam" placeholder="e.g., NEET, JEE, AIIMS" value={newExamName} onChange={(e) => setNewExamName(e.target.value)} onBlur={(e) => setNewExamName(e.target.value.trim())} />
-                <p className="text-xs text-muted-foreground">Enter a unique exam name. Names are normalized to uppercase when saved.</p>
-                {examAddError && <div className="text-sm text-destructive mt-1">{examAddError}</div>}
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setIsExamManageOpen(false)}>Close</Button>
-                <Button type="submit" disabled={isAddingExam}>{isAddingExam ? 'Adding...' : 'Add Exam'}</Button>
-              </div>
-            </form>
-
-            <div>
-              <h4 className="font-semibold mb-2">Existing Exams</h4>
-              <div className="space-y-2">
-                {exams.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="font-medium">{e.name}</div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={async () => {
-                        if (!confirm(`Delete exam ${e.name || '(unnamed)'}? This will be blocked if subjects or questions use it.`)) return;
-                        try {
-                          await apiFetch(`/admin/meta/exams/${e.id}`, { method: 'DELETE' });
-                          const exRes = await apiFetch('/admin/meta/exams');
-                          if (exRes?.success && Array.isArray(exRes.exams)) {
-                            const cleaned = (exRes.exams || []).map((ex: any) => ({ id: ex.id, name: (ex.name || '').toString().trim().toUpperCase() })).filter((ex: any) => ex.name);
-                            setExams(cleaned);
-                          }
-                          const subRes = await apiFetch('/admin/subjects');
-                          if (subRes?.success) setSubjects(subRes.subjects || []);
-                        } catch (err: any) {
-                          console.error('Failed to delete exam', err);
-                          alert(err.message || 'Failed to delete exam');
-                        }
-                      }}>Delete</Button>
-                    </div>
-                  </div>
-                ))}
-                {exams.length === 0 && <div className="text-sm text-muted-foreground">No exams found</div>}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Faculty Allocation Tab */}
       <TabsContent value="faculty-allocation" className="space-y-6 mt-0">
@@ -776,11 +695,7 @@ export default function SubjectManagement() {
                       <td className="px-6 py-4">
                         <Badge
                           variant="outline"
-                          className={
-                            subject.examType === 'NEET'
-                              ? 'border-primary/30 bg-primary/10 text-primary'
-                              : 'border-info/30 bg-info/10 text-info'
-                          }
+                          className="border-primary/30 bg-primary/10 text-primary"
                         >
                           {subject.examType}
                         </Badge>

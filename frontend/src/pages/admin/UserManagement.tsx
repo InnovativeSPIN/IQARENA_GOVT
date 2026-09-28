@@ -55,29 +55,35 @@ type User = {
   role: UserRole;
   status: UserStatus;
   schoolId?: string;
+  schoolName?: string;
   standard?: string;
   section?: string;
   batchYear?: string;
   examId?: string;
   examName?: string;
+  emisNo?: string;
+  isUnlinked?: boolean; // true = CSV-imported, no user account yet
   createdAt?: Date;
 };
 
 
 
 type ApiUser = {
-  id: number;
+  id: number | string | null;
   userid?: string;
   name?: string;
   phone?: string;
   email?: string;
   role?: string;
   school_id?: number | null;
+  school_name?: string | null;
   standard?: string | null;
   section?: string | null;
   batch_year?: string | null;
   exam_id?: number | null;
   exam_name?: string | null;
+  emis_no?: string | null;
+  is_unlinked?: number | null;
   created_at?: string;
 };
 
@@ -151,19 +157,22 @@ export default function UserManagement() {
       if (data?.success && Array.isArray(data.users)) {
         const mapped: User[] = data.users.map((u: ApiUser) => {
           return {
-            id: String(u.id),
+            id: String(u.id ?? `ss_${u.emis_no}`),
             userid: u.userid,
             name: u.name || 'Unknown',
             email: u.email || '',
             phone: u.phone || '',
             role: (u.role || 'student').toLowerCase() as UserRole,
-            status: 'active',
+            status: (u.status as UserStatus) || 'active',
             schoolId: u.school_id ? String(u.school_id) : undefined,
+            schoolName: u.school_name || undefined,
             standard: u.standard || undefined,
             section: u.section || undefined,
             batchYear: u.batch_year || undefined,
             examId: u.exam_id ? String(u.exam_id) : undefined,
             examName: u.exam_name || undefined,
+            emisNo: u.emis_no || undefined,
+            isUnlinked: !!u.is_unlinked,
             createdAt: u.created_at ? new Date(u.created_at) : new Date(),
           };
         });
@@ -1084,15 +1093,26 @@ export default function UserManagement() {
                           <span className="text-sm font-medium text-primary">{user.name.charAt(0)}</span>
                         </div>
                         <div>
-                          <p className="font-medium text-foreground">{user.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground">{user.name}</p>
+                            {user.isUnlinked && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">No Account</Badge>
+                            )}
+                          </div>
+                          {user.schoolName && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{user.schoolName}</p>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-mono text-sm">
                         <Badge variant="secondary" className="font-mono">
-                          {user.userid || user.id}
+                          {user.emisNo || user.userid || user.id}
                         </Badge>
+                        {user.isUnlinked && (
+                          <p className="text-xs text-muted-foreground mt-1">EMIS No</p>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
