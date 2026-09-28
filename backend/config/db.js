@@ -2,30 +2,31 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 dotenv.config();
+console.log('DB_HOST loaded as:', process.env.DB_HOST);
+
+// const pool = mysql.createPool({
+//   host: process.env.DB_HOST || '127.0.0.1',
+//   user: process.env.DB_USER || 'root',
+//   password: process.env.DB_PASSWORD || 'root',
+//   database: process.env.DB_NAME || 'tmhnuiqarena',
+//   port: 3306,
+//   waitForConnections: true,
+//   connectionLimit: 10,
+//   queueLimit: 0,
+//   enableKeepAlive: true
+// });
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || '192.168.30.30',
-  user: process.env.DB_USER || 'tmhnuiqarena',
-  password: process.env.DB_PASSWORD || 'Tmiqarena@123',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'root',
   database: process.env.DB_NAME || 'tmhnuiqarena',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelayMs: 0,
-});
-
-// const pool = mysql.createPool({
-//   host: process.env.DB_HOST || 'localhost',
-//   user: process.env.DB_USER || 'root',
-//   password: process.env.DB_PASSWORD || '',
-//   database: process.env.DB_NAME || 'tmhnu',
-//   waitForConnections: true,
-//   connectionLimit: 10,
-//   queueLimit: 0,
-//   enableKeepAlive: true,
   
-// });
+});
 
 // Test the connection
 pool.getConnection()

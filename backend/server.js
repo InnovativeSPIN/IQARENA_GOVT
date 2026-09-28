@@ -17,6 +17,7 @@ import uploadRoutes from './routes/admin/uploadRoutes.js';
 import testRoutes from './routes/admin/testRoutes.js';
 import offlinePaperRoutes from './routes/admin/offlinePaperRoutes.js';
 import batchAdminRoutes from './routes/admin/batchRoutes.js';
+import schoolRoutes from './routes/admin/schoolRoutes.js';
 import batchRoutes from './routes/batch/batchRoutes.js';
 import dashboardRoutes from './routes/dashboard/dashboardRoutes.js';
 import studentTestRoutes from './routes/student/studentTestRoutes.js';
@@ -67,7 +68,7 @@ app.get('/health', (req, res) => {
 app.get('/api/version', (req, res) => {
   res.status(200).json({
     version: '1.0.0',
-    name: 'TMHNU Quiz Application API',
+    name: 'Govt IQARENA Quiz Application API',
     environment: process.env.NODE_ENV || 'development'
   });
 });
@@ -106,6 +107,9 @@ app.use('/api/admin/batches', batchAdminRoutes);
 
 // Admin meta routes
 app.use('/api/admin/meta', examMetaRoutes);
+
+// Admin school routes
+app.use('/api/admin/schools', schoolRoutes);
 
 // Batch routes
 app.use('/api/batches', batchRoutes);
