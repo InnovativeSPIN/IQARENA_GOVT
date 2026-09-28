@@ -15,6 +15,7 @@ import {
   ChevronRight,
   LogOut,
   Layers,
+  Building,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: UserCheck, label: 'Batch Management', path: '/admin/batches' },
+  { icon: Building, label: 'School Management', path: '/admin/schools' },
   { icon: BookOpen, label: 'Exam Management', path: '/admin/exams' },
   { icon: Layers, label: 'Subject Management', path: '/admin/subjects' },
   { icon: FileText, label: 'Topic Management', path: '/admin/topics' },

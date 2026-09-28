@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react';
 import { AdminSidebar } from './AdminSidebar';
 import { TopNavbar } from './TopNavbar';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -21,6 +21,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       {/* Mobile Sidebar */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-64">
+          <SheetTitle className="sr-only">Admin Menu</SheetTitle>
           <AdminSidebar />
         </SheetContent>
       </Sheet>

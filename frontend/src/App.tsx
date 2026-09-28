@@ -18,6 +18,7 @@ import TopicManagement from "./pages/admin/TopicManagement";
 import QuestionManagement from "./pages/admin/QuestionManagement";
 import TestManagement from "./pages/admin/TestManagement";
 import NotificationLogs from "./pages/admin/NotificationLogs";
+import SchoolManagement from "./pages/admin/SchoolManagement";
 import NotFound from "./pages/NotFound";
 
 // Student Pages
@@ -97,6 +98,7 @@ function AppRoutes() {
       
       {/* ADDED: Batch Management Route */}
       <Route path="/admin/batches" element={<ProtectedRoute allowedRoles={['ADMIN']}><BatchManagement /></ProtectedRoute>} />
+      <Route path="/admin/schools" element={<ProtectedRoute allowedRoles={['ADMIN']}><SchoolManagement /></ProtectedRoute>} />
       <Route path="/admin/exams" element={<ProtectedRoute allowedRoles={['ADMIN']}><ExamManagement /></ProtectedRoute>} />
       
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={['ADMIN']}><SubjectManagement /></ProtectedRoute>} />

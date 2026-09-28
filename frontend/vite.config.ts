@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
     // Proxy API requests to the backend during development
     proxy: {
       '/api': {
-        target: 'http://localhost:3011',
+        target: 'http://127.0.0.1:3010',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api')
