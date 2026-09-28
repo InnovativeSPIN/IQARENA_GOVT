@@ -1,18 +1,20 @@
 import pool from '../../config/db.js';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import csvParser from 'csv-parser';
 
 // List all users 
 export const listUsers = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.execute(
-      `SELECT u.id, u.userid, u.name, u.phone, u.email, u.created_at, 
+      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
               CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
-              r.name as role, b.batch_name as batchName, s.batch_id
+              r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
-       LEFT JOIN students s ON s.user_id = u.id
-       LEFT JOIN batches b ON b.id = s.batch_id
+       LEFT JOIN school_students ss ON ss.user_id = u.id
+       LEFT JOIN exams e ON e.id = ss.exam_id
        ORDER BY u.id DESC`
     );
     connection.release();
@@ -29,7 +31,7 @@ export const getUserById = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.execute(
-      `SELECT u.id, u.userid, u.name, u.phone, u.email, u.created_at, 
+      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
               CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
               r.name as role, b.batch_name as batchName, s.batch_id
        FROM users u
@@ -54,7 +56,7 @@ export const getUserById = async (req, res) => {
 
 // Create a new user
 export const createUser = async (req, res) => {
-  const { userid, name, phone, email, role, password, batchId } = req.body;
+  const { userid, name, phone, email, role, password, batchId, school_id } = req.body;
   if (!userid || !name || !role) {
     return res.status(400).json({ success: false, message: 'userid, name and role are required' });
   }
@@ -85,50 +87,29 @@ export const createUser = async (req, res) => {
     const statusValue = req.body.status === 'inactive' ? 0 : 1;
     
     const [result] = await connection.execute(
-      'INSERT INTO users (userid, role_id, name, phone, email, password, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [userid, roleId, name, phone || null, email || null, hashedPassword, statusValue]
+      'INSERT INTO users (userid, role_id, school_id, name, phone, email, password, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [userid, roleId, role.toUpperCase() === 'FACULTY' ? (school_id || null) : null, name, phone || null, email || null, hashedPassword, statusValue]
     );
 
     const newUserId = result.insertId;
-    if (role.toUpperCase() === 'STUDENT' && batchId) {
-      // Get batch name to determine exam type
-      const [batchRows] = await connection.execute('SELECT batch_name FROM batches WHERE id = ?', [batchId]);
-      let examId = null;
-      
-      if (batchRows.length > 0) {
-        const batchName = batchRows[0].batch_name.toLowerCase();
-        // Determine exam based on batch name
-        if (batchName.includes('neet')) {
-          const [neetExam] = await connection.execute('SELECT id FROM exams WHERE name = "NEET"');
-          if (neetExam.length > 0) examId = neetExam[0].id;
-        } else if (batchName.includes('jee')) {
-          const [jeeExam] = await connection.execute('SELECT id FROM exams WHERE name = "JEE"');
-          if (jeeExam.length > 0) examId = jeeExam[0].id;
-        }
-      }
-      
-      // If no exam determined, use first available exam
-      if (!examId) {
-        const [defaultExam] = await connection.execute('SELECT id FROM exams LIMIT 1');
-        if (defaultExam.length > 0) examId = defaultExam[0].id;
-      }
-      
-      if (examId) {
+    if (role.toUpperCase() === 'STUDENT') {
+      const { standard, section, batch_year, exam_id } = req.body;
+      if (school_id && standard && batch_year) {
         await connection.execute(
-          'INSERT INTO students (user_id, batch_id, exam_id) VALUES (?, ?, ?)',
-          [newUserId, batchId, examId]
+          'INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [newUserId, school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null]
         );
       }
     }
 
       const [rows] = await connection.execute(
-        `SELECT u.id, u.userid, u.name, u.phone, u.email, u.created_at, 
+        `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
                 CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
-                r.name as role, b.batch_name as batchName
+                r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
-       LEFT JOIN students s ON s.user_id = u.id
-       LEFT JOIN batches b ON b.id = s.batch_id
+       LEFT JOIN school_students ss ON ss.user_id = u.id
+       LEFT JOIN exams e ON e.id = ss.exam_id
        WHERE u.id = ?`,
       [newUserId]
     );
@@ -143,7 +124,7 @@ export const createUser = async (req, res) => {
 // Update user details
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { userid, name, phone, email, role, password, batchId, status } = req.body;
+  const { userid, name, phone, email, role, password, batchId, status, school_id } = req.body;
   try {
     const connection = await pool.getConnection();
 
@@ -187,68 +168,41 @@ export const updateUser = async (req, res) => {
     if (status === 'inactive') statusValue = 0;
     
     await connection.execute(
-      'UPDATE users SET userid = COALESCE(?, userid), name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role_id = ?, password = COALESCE(?, password), status = COALESCE(?, status) WHERE id = ?',
-      [userid || null, name || null, phone || null, email || null, roleId, hashedPassword, statusValue, id]
+      'UPDATE users SET userid = COALESCE(?, userid), name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role_id = ?, school_id = ?, password = COALESCE(?, password), status = COALESCE(?, status) WHERE id = ?',
+      [userid || null, name || null, phone || null, email || null, roleId, (role && role.toUpperCase() === 'FACULTY') ? (school_id || null) : null, hashedPassword, statusValue, id]
     );
 
     if (role && role.toUpperCase() !== 'STUDENT') {
-      await connection.execute('DELETE FROM students WHERE user_id = ?', [id]);
+      await connection.execute('DELETE FROM school_students WHERE user_id = ?', [id]);
     } else if (role && role.toUpperCase() === 'STUDENT') {
-      if (batchId) {
-        const [batchRows] = await connection.execute('SELECT batch_name FROM batches WHERE id = ?', [batchId]);
-        let examId = null;
-        
-        if (batchRows.length > 0) {
-          const batchName = batchRows[0].batch_name.toLowerCase();
-          if (batchName.includes('neet')) {
-            const [neetExam] = await connection.execute('SELECT id FROM exams WHERE name = "NEET"');
-            if (neetExam.length > 0) examId = neetExam[0].id;
-          } else if (batchName.includes('jee')) {
-            const [jeeExam] = await connection.execute('SELECT id FROM exams WHERE name = "JEE"');
-            if (jeeExam.length > 0) examId = jeeExam[0].id;
-          }
-        }
-        
-        if (!examId) {
-          const [defaultExam] = await connection.execute('SELECT id FROM exams LIMIT 1');
-          if (defaultExam.length > 0) examId = defaultExam[0].id;
-        }
-        
-        const [studentRows] = await connection.execute('SELECT id FROM students WHERE user_id = ?', [id]);
+      const { standard, section, batch_year, exam_id } = req.body;
+      if (school_id && standard && batch_year) {
+        const [studentRows] = await connection.execute('SELECT id FROM school_students WHERE user_id = ?', [id]);
         if (studentRows.length === 0) {
           // Insert new student record
-          if (examId) {
-            await connection.execute(
-              'INSERT INTO students (user_id, batch_id, exam_id) VALUES (?, ?, ?)',
-              [id, batchId, examId]
-            );
-          }
+          await connection.execute(
+            'INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null]
+          );
         } else {
           // Update existing student record
-          if (examId) {
-            await connection.execute(
-              'UPDATE students SET batch_id = ?, exam_id = ? WHERE user_id = ?',
-              [batchId, examId, id]
-            );
-          } else {
-            await connection.execute(
-              'UPDATE students SET batch_id = ? WHERE user_id = ?',
-              [batchId, id]
-            );
-          }
+          await connection.execute(
+            'UPDATE school_students SET school_id = ?, emis_no = ?, student_name = ?, phone = ?, standard = ?, section = ?, batch_year = ?, exam_id = ? WHERE user_id = ?',
+            [school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null, id]
+          );
         }
       }
     }
 
     // Return updated user
     const [rows] = await connection.execute(
-      `SELECT u.id, u.userid, u.name, u.phone, u.email, u.created_at, 
+      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
               CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
-              r.name as role, b.batch_name as batchName
+              r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
-       LEFT JOIN students s ON s.user_id = u.id
-       LEFT JOIN batches b ON b.id = s.batch_id
+       LEFT JOIN school_students ss ON ss.user_id = u.id
+       LEFT JOIN exams e ON e.id = ss.exam_id
        WHERE u.id = ?`,
       [id]
     );
@@ -412,10 +366,96 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+export const importFaculty = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No CSV file uploaded' });
+    }
+
+    const results = [];
+    fs.createReadStream(req.file.path)
+      .pipe(csvParser())
+      .on('data', (data) => results.push(data))
+      .on('end', async () => {
+        let imported = 0;
+        let skipped = 0;
+        const errors = [];
+        
+        const defaultPassword = await bcrypt.hash('203040', 10);
+
+        for (let i = 0; i < results.length; i++) {
+          const row = results[i];
+          const udise_code = row.udise_code?.trim() || row.emis_no?.trim() || row.umis_id?.trim();
+          const faculty_name = row.faculty_name?.trim() || row.name?.trim();
+          const phone = row.phone?.trim() || null;
+          const email = row.email?.trim() || null;
+          
+          if (!udise_code || !faculty_name) {
+            skipped++;
+            errors.push(`Row ${i + 2}: Missing required fields (udise_code or faculty_name)`);
+            continue;
+          }
+
+          try {
+            // Find school
+            const [schools] = await pool.query('SELECT id FROM schools WHERE udise_code = ?', [udise_code]);
+            if (schools.length === 0) {
+              skipped++;
+              errors.push(`Row ${i + 2}: School with UDISE code ${udise_code} not found`);
+              continue;
+            }
+            const school_id = schools[0].id;
+            
+            // For userid, use phone if available, else generate
+            const userid = phone || `FAC_${udise_code}_${Date.now()}_${i}`;
+
+            // Check if user already exists
+            const [existingUser] = await pool.query('SELECT id FROM users WHERE userid = ?', [userid]);
+            
+            if (existingUser.length > 0) {
+              await pool.query(
+                'UPDATE users SET name = ?, phone = ?, email = ?, school_id = ? WHERE id = ?',
+                [faculty_name, phone, email, school_id, existingUser[0].id]
+              );
+            } else {
+              await pool.query(
+                'INSERT INTO users (userid, name, phone, email, password, role_id, school_id, status) VALUES (?, ?, ?, ?, ?, 4, ?, 1)',
+                [userid, faculty_name, phone, email, defaultPassword, school_id]
+              );
+            }
+            imported++;
+          } catch (err) {
+            console.error(`Error importing row ${i + 2}:`, err);
+            skipped++;
+            errors.push(`Row ${i + 2}: Database error - ${err.message}`);
+          }
+        }
+
+        // Clean up the uploaded file
+        fs.unlinkSync(req.file.path);
+
+        res.json({
+          success: true,
+          message: `Faculty Import complete. Imported/Updated: ${imported}. Skipped: ${skipped}.`,
+          imported,
+          skipped,
+          errors: errors.length > 0 ? errors : undefined
+        });
+      });
+  } catch (error) {
+    console.error('Error importing faculty:', error);
+    if (req.file) {
+      fs.unlinkSync(req.file.path).catch(() => {});
+    }
+    res.status(500).json({ success: false, message: 'Server error during import' });
+  }
+};
+
 export default {
   listUsers,
   createUser,
   updateUser,
   deleteUser,
   resetPassword,
+  importFaculty,
 };

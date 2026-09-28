@@ -3,21 +3,42 @@ import pool from '../../config/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// Get user details by user ID
+// Get user details by user ID (can be userid from users or emis_no from school_students)
 export const getUserById = async (req, res) => {
   const { userId } = req.params;
   try {
     const connection = await pool.getConnection();
+    
+    // Check users table first
     const [users] = await connection.execute(
-      'SELECT id, name, phone FROM users WHERE userid = ?',
+      `SELECT u.id, u.name, u.phone, s.school_name, ss.standard, ss.section
+       FROM users u 
+       LEFT JOIN school_students ss ON u.id = ss.user_id
+       LEFT JOIN schools s ON ss.school_id = s.id
+       WHERE u.userid = ? OR u.email = ?`,
+      [userId, userId]
+    );
+    
+    if (users.length > 0) {
+      connection.release();
+      return res.status(200).json({ success: true, data: users[0] });
+    }
+    
+    // If not in users, check school_students
+    const [schoolStudents] = await connection.execute(
+      `SELECT ss.emis_no as userid, ss.student_name as name, ss.phone, s.school_name, ss.standard, ss.section
+       FROM school_students ss
+       LEFT JOIN schools s ON ss.school_id = s.id
+       WHERE ss.emis_no = ?`,
       [userId]
     );
+    
     connection.release();
-    if (users.length === 0) {
+    if (schoolStudents.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    const user = users[0];
-    res.status(200).json({ success: true, data: user });
+    
+    res.status(200).json({ success: true, data: schoolStudents[0] });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching user', error: error.message });
   }
@@ -39,8 +60,8 @@ export const registerUser = async (req, res) => {
     connection = await pool.getConnection();
 
     const [users] = await connection.execute(
-      'SELECT id, name, phone, password FROM users WHERE userid = ?',
-      [userId]
+      'SELECT id, name, phone, password FROM users WHERE userid = ? OR email = ?',
+      [userId, userId]
     );
 
     // If user does not exist, create a new STUDENT user
@@ -114,8 +135,8 @@ export const loginUser = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [users] = await connection.execute(
-      'SELECT u.id, u.name, u.phone, u.password, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.userid = ?',
-      [userId]
+      'SELECT u.id, u.name, u.phone, u.password, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.userid = ? OR u.email = ?',
+      [userId, userId]
     );
     connection.release();
     if (users.length === 0) {

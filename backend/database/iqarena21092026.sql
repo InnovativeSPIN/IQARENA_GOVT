@@ -42,7 +42,7 @@ CREATE TABLE `batches` (
 
 LOCK TABLES `batches` WRITE;
 /*!40000 ALTER TABLE `batches` DISABLE KEYS */;
-INSERT INTO `batches` VALUES (1,'neet_2025',1,1,'2025-12-08 15:52:39'),(2,'jee_2025',2,1,'2025-12-08 15:52:39'),(26,'GATE_test',3,1,'2026-03-03 17:14:20'),(31,'XII std',1,1,'2026-04-18 02:15:53');
+INSERT INTO `batches` VALUES (1,'neet_2025',1,1,'2025-12-08 15:52:39'),(2,'jee_2025',2,1,'2025-12-08 15:52:39');
 /*!40000 ALTER TABLE `batches` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -371,8 +371,10 @@ CREATE TABLE `schools` (
   `id` int NOT NULL AUTO_INCREMENT,
   `school_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `school_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `udise_code` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `state_emis_id` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `district` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `block` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `management` enum('Government','Aided') COLLATE utf8mb4_unicode_ci DEFAULT 'Government',
   `address` text COLLATE utf8mb4_unicode_ci,
   `contact_phone` varchar(15) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` tinyint(1) DEFAULT '1',
@@ -380,7 +382,7 @@ CREATE TABLE `schools` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_school_code` (`school_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -389,6 +391,7 @@ CREATE TABLE `schools` (
 
 LOCK TABLES `schools` WRITE;
 /*!40000 ALTER TABLE `schools` DISABLE KEYS */;
+INSERT INTO `schools` VALUES (2,'NSCET','33123456789','33123456789','33123456789','Theni','Government',NULL,NULL,1,'2026-09-28 05:06:59','2026-09-28 05:06:59'),(4,'TMHNU','33123456788','33123456788','33123456788','Theni','Aided',NULL,NULL,1,'2026-09-28 05:07:28','2026-09-28 05:07:28');
 /*!40000 ALTER TABLE `schools` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -829,4 +832,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-28 10:09:38
+-- Dump completed on 2026-09-28 10:41:59

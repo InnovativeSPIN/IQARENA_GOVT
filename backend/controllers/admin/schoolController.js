@@ -33,15 +33,15 @@ export const getSchoolById = async (req, res) => {
 // Create a new school
 export const createSchool = async (req, res) => {
   try {
-    const { school_name, school_code, district, block, address, contact_phone } = req.body;
+    const { school_name, school_code, udise_code, state_emis_id, district, management, address, contact_phone } = req.body;
     
     if (!school_name) {
       return res.status(400).json({ success: false, message: 'School name is required' });
     }
 
     const [result] = await pool.query(
-      'INSERT INTO schools (school_name, school_code, district, block, address, contact_phone) VALUES (?, ?, ?, ?, ?, ?)',
-      [school_name, school_code || null, district || null, block || null, address || null, contact_phone || null]
+      'INSERT INTO schools (school_name, school_code, udise_code, state_emis_id, district, management, address, contact_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [school_name, school_code || null, udise_code || null, state_emis_id || null, district || null, management || 'Government', address || null, contact_phone || null]
     );
 
     res.status(201).json({ 
@@ -62,11 +62,11 @@ export const createSchool = async (req, res) => {
 export const updateSchool = async (req, res) => {
   try {
     const { id } = req.params;
-    const { school_name, school_code, district, block, address, contact_phone, status } = req.body;
+    const { school_name, school_code, udise_code, state_emis_id, district, management, address, contact_phone, status } = req.body;
     
     const [result] = await pool.query(
-      'UPDATE schools SET school_name = ?, school_code = ?, district = ?, block = ?, address = ?, contact_phone = ?, status = ? WHERE id = ?',
-      [school_name, school_code || null, district || null, block || null, address || null, contact_phone || null, status, id]
+      'UPDATE schools SET school_name = ?, school_code = ?, udise_code = ?, state_emis_id = ?, district = ?, management = ?, address = ?, contact_phone = ?, status = ? WHERE id = ?',
+      [school_name, school_code || null, udise_code || null, state_emis_id || null, district || null, management || 'Government', address || null, contact_phone || null, status, id]
     );
 
     if (result.affectedRows === 0) {
@@ -117,6 +117,8 @@ export const importStudents = async (req, res) => {
   try {
     const { id } = req.params; // school_id
 
+    const { standard: bodyStandard, section: bodySection, batch_year, exam_id } = req.body;
+
     // Check if school exists
     const [school] = await pool.query('SELECT * FROM schools WHERE id = ?', [id]);
     if (school.length === 0) {
@@ -142,8 +144,8 @@ export const importStudents = async (req, res) => {
           const row = results[i];
           const emis_no = row.emis_no?.trim() || row.EMIS?.trim() || row.emis?.trim();
           const student_name = row.student_name?.trim() || row.name?.trim() || row.Name?.trim();
-          const standard = row.standard?.trim() || row.class?.trim() || row.Class?.trim();
-          const section = row.section?.trim() || null;
+          const standard = bodyStandard?.trim() || row.standard?.trim() || row.class?.trim() || row.Class?.trim();
+          const section = bodySection?.trim() || row.section?.trim() || null;
           const phone = row.phone?.trim() || null;
           
           if (!emis_no || !student_name || !standard) {
@@ -154,10 +156,10 @@ export const importStudents = async (req, res) => {
 
           try {
             await pool.query(
-              'INSERT INTO school_students (emis_no, student_name, school_id, standard, section, phone) VALUES (?, ?, ?, ?, ?, ?) ' +
-              'ON DUPLICATE KEY UPDATE student_name = ?, school_id = ?, standard = ?, section = ?, phone = ?',
-              [emis_no, student_name, id, standard, section, phone, 
-               student_name, id, standard, section, phone]
+              'INSERT INTO school_students (emis_no, student_name, school_id, standard, section, phone, batch_year, exam_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
+              'ON DUPLICATE KEY UPDATE student_name = ?, school_id = ?, standard = ?, section = ?, phone = ?, batch_year = ?, exam_id = ?',
+              [emis_no, student_name, id, standard, section, phone, batch_year || null, exam_id || null,
+               student_name, id, standard, section, phone, batch_year || null, exam_id || null]
             );
             imported++;
           } catch (err) {

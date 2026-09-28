@@ -1,7 +1,13 @@
 import express from 'express';
-import { listUsers, createUser, getUserById, updateUser, deleteUser, resetPassword, updateUserStatus, fixUserRoles } from '../../controllers/admin/usersController.js';
+import multer from 'multer';
+import fs from 'fs';
+import { listUsers, createUser, getUserById, updateUser, deleteUser, resetPassword, updateUserStatus, fixUserRoles, importFaculty } from '../../controllers/admin/usersController.js';
 import { verifyAdmin } from '../../middleware/auth.js';
 
+const upload = multer({ dest: 'uploads/temp/' });
+if (!fs.existsSync('uploads/temp/')) {
+  fs.mkdirSync('uploads/temp/', { recursive: true });
+}
 const router = express.Router();
 
 // GET /api/admin/users - list all users
@@ -23,6 +29,8 @@ router.put('/:id/status', updateUserStatus);
 
 // DELETE /api/admin/users/:id - delete user
 router.delete('/:id', deleteUser);
+
+router.post('/import-faculty', verifyAdmin, upload.single('file'), importFaculty);
 
 router.post('/fix-roles', verifyAdmin, fixUserRoles);
 
