@@ -47,12 +47,32 @@ export const registerUser = async (req, res) => {
     if (users.length === 0) {
       const hashedPassword = await bcrypt.hash(password, 10);
       const roleId = 3; // STUDENT
+      
+      // Check if this userId is an EMIS number in school_students
+      const [schoolStudentRows] = await connection.execute(
+        'SELECT id, student_name, phone FROM school_students WHERE emis_no = ?',
+        [userId]
+      );
+      
+      const isSchoolStudent = schoolStudentRows.length > 0;
+      const actualName = isSchoolStudent ? schoolStudentRows[0].student_name : (name || '');
+      const actualPhone = isSchoolStudent ? (schoolStudentRows[0].phone || phone || null) : (phone || null);
+
       const [result] = await connection.execute(
         'INSERT INTO users (userid, role_id, name, phone, password, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, roleId, name || '', phone || null, hashedPassword, 1]
+        [userId, roleId, actualName, actualPhone, hashedPassword, 1]
       );
 
       const newUserId = result.insertId;
+      
+      // If they are a school student, link their user_id
+      if (isSchoolStudent) {
+        await connection.execute(
+          'UPDATE school_students SET user_id = ? WHERE emis_no = ?',
+          [newUserId, userId]
+        );
+      }
+
       const [rows] = await connection.execute(
         'SELECT id, userid, name, phone FROM users WHERE id = ?',
         [newUserId]
