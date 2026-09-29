@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { getAttemptQuestions } from '../../lib/attemptQuestions.js';
 
 // Get test details with questions for student
 export const getTestForStudent = async (req, res) => {
@@ -32,7 +33,7 @@ export const getTestForStudent = async (req, res) => {
          t.duration_minutes AS duration,
          t.all_subjects,
          t.parent_test_id,
-         COALESCE((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0) as totalMarks,
+         COALESCE(NULLIF((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0), t.total_marks, 0) as totalMarks,
          t.start_time AS startTime,
          t.end_time AS endTime,
          t.status,
@@ -433,6 +434,12 @@ export const startTestAttempt = async (req, res) => {
         const tId = a.topicId;
         const stId = a.subtopicId;
         const desired = Number(a.questionCount) || 0;
+
+        // Section with manually chosen questions: use them as-is
+        if (Array.isArray(a.questionIds) && a.questionIds.length > 0) {
+          qIds.push(...a.questionIds.map(Number).filter(Boolean));
+          continue;
+        }
         
         let candidateQuery;
         let cparams = [];
@@ -474,8 +481,8 @@ export const startTestAttempt = async (req, res) => {
       qIds = qRows.map(r => r.question_id);
     }
 
-    // Shuffle using Fisher-Yates
-    for (let i = qIds.length - 1; i > 0; i--) {
+    // Shuffle using Fisher-Yates only when the test is set to randomize at runtime
+    if (testInfo && testInfo.is_randomized) for (let i = qIds.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [qIds[i], qIds[j]] = [qIds[j], qIds[i]];
     }
@@ -543,40 +550,17 @@ export const submitTestAttempt = async (req, res) => {
       });
     }
 
-    // Calculate score
+    // Questions this student actually received (randomized tests have none in test_questions),
+    // with section marks applied
+    const [[testInfo]] = await connection.query('SELECT all_subjects, parent_test_id, total_marks FROM tests WHERE id = ?', [testId]);
+    const attemptSet = await getAttemptQuestions(connection, attemptId, testId);
     let testQuestions = [];
-
-    // Check if this is a combined test
-    const [[testInfo]] = await connection.query('SELECT all_subjects, parent_test_id FROM tests WHERE id = ?', [testId]);
-    if (testInfo && testInfo.all_subjects === 1 && testInfo.parent_test_id === null) {
-      // This is a combined test - get questions from all child tests
-      const [childTests] = await connection.query(
-        'SELECT id FROM tests WHERE parent_test_id = ?',
-        [testId]
-      );
-      const childTestIds = childTests.map(ct => ct.id);
-
-      if (childTestIds.length > 0) {
-        const placeholders = childTestIds.map(() => '?').join(', ');
-        const [questions] = await connection.query(
-          `SELECT DISTINCT q.id, q.answer as correctAnswer, q.marks
-           FROM test_questions tq
-           JOIN questions q ON tq.question_id = q.id
-           WHERE tq.test_id IN (${placeholders})`,
-          childTestIds
-        );
-        testQuestions = questions;
-      }
-    } else {
-      // Normal test - get questions from this test
+    if (attemptSet.ids.length > 0) {
       const [questions] = await connection.query(
-        `SELECT q.id, q.answer as correctAnswer, q.marks
-         FROM test_questions tq
-         JOIN questions q ON tq.question_id = q.id
-         WHERE tq.test_id = ?`,
-        [testId]
+        `SELECT q.id, q.answer as correctAnswer FROM questions q WHERE q.id IN (${attemptSet.ids.map(() => '?').join(',')})`,
+        attemptSet.ids
       );
-      testQuestions = questions;
+      testQuestions = questions.map(q => ({ ...q, marks: attemptSet.marks.get(Number(q.id)) || 0 }));
     }
 
     let score = 0;
@@ -635,38 +619,10 @@ export const submitTestAttempt = async (req, res) => {
       [score, timeTaken, attemptId]
     );
 
-    // Get total marks for the test
-    let totalMarks = 0;
+    // Total marks for this attempt's questions (falls back to the stored test total)
+    const totalMarks = attemptSet.totalMarks || Number(testInfo?.total_marks) || 0;
 
-    if (testInfo && testInfo.all_subjects === 1 && testInfo.parent_test_id === null) {
-      // This is a combined test - calculate total marks from all child tests
-      const [childTests] = await connection.query(
-        'SELECT id FROM tests WHERE parent_test_id = ?',
-        [testId]
-      );
-      const childTestIds = childTests.map(ct => ct.id);
-
-      if (childTestIds.length > 0) {
-        const placeholders = childTestIds.map(() => '?').join(', ');
-        const [[marksResult]] = await connection.query(
-          `SELECT COALESCE(SUM(q.marks), 0) as totalMarks
-           FROM test_questions tq
-           JOIN questions q ON tq.question_id = q.id
-           WHERE tq.test_id IN (${placeholders})`,
-          childTestIds
-        );
-        totalMarks = marksResult?.totalMarks || 0;
-      }
-    } else {
-      // Normal test - use stored total_marks
-      const [[testMarks]] = await connection.query(
-        'SELECT total_marks FROM tests WHERE id = ?',
-        [testId]
-      );
-      totalMarks = testMarks?.total_marks || 100;
-    }
-
-    const percentage = (score / totalMarks) * 100;
+    const percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0;
 
     // Fetch detailed attempt info and per-question answers to build a report
     const [[attemptRow]] = await connection.query(
@@ -711,13 +667,12 @@ export const submitTestAttempt = async (req, res) => {
          qi.option_c AS optionCImg,
          qi.option_d AS optionDImg,
          qi.explanation AS explanationImg
-       FROM test_questions tq
-       JOIN questions q ON tq.question_id = q.id
+       FROM questions q
        LEFT JOIN student_answers sa ON sa.attempt_id = ? AND sa.question_id = q.id
        LEFT JOIN question_images qi ON q.use_img = qi.id
-       WHERE tq.test_id = ?
-       ORDER BY tq.id`,
-      [attemptId, testId]
+       WHERE q.id IN (${attemptSet.ids.length ? attemptSet.ids.map(() => '?').join(',') : 'NULL'})
+       ORDER BY FIELD(q.id, ${attemptSet.ids.length ? attemptSet.ids.map(() => '?').join(',') : 'NULL'})`,
+      [attemptId, ...attemptSet.ids, ...attemptSet.ids]
     );
 
     // Calculate stats
@@ -747,7 +702,7 @@ export const submitTestAttempt = async (req, res) => {
       isCorrect: q.isCorrect === 1,
       isMarkedForReview: q.isMarkedForReview === 1,
       explanation: q.explanation,
-      marks: q.marks,
+      marks: attemptSet.marks.get(Number(q.id)) ?? q.marks,
       images: q.question_img ? {
         question: formatImagePath(q.question_img),
         optionA: formatImagePath(q.optionAImg),
@@ -775,8 +730,8 @@ export const submitTestAttempt = async (req, res) => {
           examType: attemptRow.examType,
           subject: attemptRow.subject || 'General',
           score: parseFloat(attemptRow.score),
-          totalMarks: attemptRow.totalMarks,
-          percentage: parseFloat(((attemptRow.score / attemptRow.totalMarks) * 100).toFixed(1)),
+          totalMarks,
+          percentage: totalMarks > 0 ? parseFloat(((attemptRow.score / totalMarks) * 100).toFixed(1)) : 0,
           timeTaken: attemptRow.timeTaken,
           duration: attemptRow.duration,
           startedAt: attemptRow.startedAt,

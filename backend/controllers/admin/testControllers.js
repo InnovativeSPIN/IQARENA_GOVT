@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { ensureTestStandardColumn, notifyStudentsForTest } from '../../lib/testNotifications.js';
 
 export const getTests = async (req, res) => {
   const { examId, subjectId, batchId, status, search, subtopicId } = req.query;
@@ -502,6 +503,9 @@ export const createTest = async (req, res) => {
     }
     
 
+    // Ensure tests.standard exists (ALTER must run outside the transaction)
+    await ensureTestStandardColumn(connection);
+
     if (hasAlloc) {
       await connection.beginTransaction();
     }
@@ -524,16 +528,23 @@ export const createTest = async (req, res) => {
 
     const finalTitle = title || `Test - ${new Date().toLocaleString()}`;
     const finalTotalMarks = typeof totalMarks !== 'undefined' ? totalMarks : 0;
+    // Admin-entered total marks take precedence over the computed sum
+    const totalMarksOverride = Number(req.body.totalMarksOverride) > 0 ? Number(req.body.totalMarksOverride) : null;
 
     const finalSchoolIds = Array.isArray(req.body.schoolIds) ? JSON.stringify(req.body.schoolIds) : null;
     const isRandomized = req.body.isRandomized ? 1 : 0;
     const sectionConfig = isRandomized && hasAlloc ? JSON.stringify(req.body.allocations) : null;
 
+    // Classes (school_students.standard) as a comma-separated list; null = all classes
+    const standardList = Array.isArray(req.body.standards) ? req.body.standards : (req.body.standard ? String(req.body.standard).split(',') : []);
+    const cleanStandards = [...new Set(standardList.map(s => String(s).trim()).filter(Boolean))];
+    const standard = cleanStandards.length > 0 ? cleanStandards.join(',') : null;
+
     const [result] = await connection.execute(
       `INSERT INTO tests 
-        (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, title, duration_minutes, total_marks, start_time, end_time, status, created_by, school_ids, is_randomized, section_config)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [examId, finalSubjectId, finalAllSubjects, finalTopicId, finalSubtopicId, batchId || null, finalTitle, duration, finalTotalMarks, startTime || null, endTime || null, status, createdBy || null, finalSchoolIds, isRandomized, sectionConfig]
+        (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, standard, title, duration_minutes, total_marks, start_time, end_time, status, created_by, school_ids, is_randomized, section_config)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [examId, finalSubjectId, finalAllSubjects, finalTopicId, finalSubtopicId, batchId || null, standard, finalTitle, duration, finalTotalMarks, startTime || null, endTime || null, status, createdBy || null, finalSchoolIds, isRandomized, sectionConfig]
     );
     const testId = result.insertId;
 
@@ -542,7 +553,7 @@ export const createTest = async (req, res) => {
       if (!isRandomized) {
         try {
           const applyResult = await applyAllocationsToTest(connection, testId, req.body.allocations);
-          await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [applyResult.totalMarks || 0, testId]);
+          await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [totalMarksOverride || applyResult.totalMarks || 0, testId]);
           allocationResult = applyResult;
 
           await connection.commit();
@@ -556,7 +567,7 @@ export const createTest = async (req, res) => {
       } else {
         // It's randomized, so calculate total marks manually and commit
         const computedMarks = req.body.allocations.reduce((acc, a) => acc + ((Number(a.questionCount) || 0) * (Number(a.marksPerQuestion) || 4)), 0);
-        await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [computedMarks, testId]);
+        await connection.execute('UPDATE tests SET total_marks = ? WHERE id = ?', [totalMarksOverride || computedMarks, testId]);
         await connection.commit();
         connection.release();
       }
@@ -586,6 +597,11 @@ export const createTest = async (req, res) => {
       }
     }
     
+    if (status === 'published') {
+    // Tell matching students (school + class) that the test is available
+    notifyStudentsForTest(testId).catch(err => console.error('Failed to send test notifications:', err));
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Test created successfully',
@@ -633,6 +649,22 @@ async function previewAllocationsForTest(connection, testId, allocations) {
 
     if (!sId) {
       warnings.push('Allocation requires subjectId');
+      continue;
+    }
+
+    // Manually chosen questions for this section: insert exactly those
+    const manualIds = Array.isArray(a.questionIds) ? a.questionIds.map(Number).filter(Boolean) : [];
+    if (manualIds.length > 0) {
+      const addedIds = [];
+      for (const qid of manualIds) {
+        const [dup] = await connection.execute('SELECT id FROM test_questions WHERE test_id = ? AND question_id = ?', [testId, qid]);
+        if (dup.length > 0) continue;
+        const [ins] = await connection.execute('INSERT INTO test_questions (test_id, question_id) VALUES (?, ?)', [testId, qid]);
+        if (ins.affectedRows > 0) addedIds.push(qid);
+      }
+      totalAdded += addedIds.length;
+      totalMarks += manualIds.length * marks;
+      perAlloc.push({ subjectId: sId, topicId: tId, subtopicId: stId, desired: manualIds.length, existing: 0, added: addedIds.length, removed: 0, addedIds, removedIds: [], marksPerQuestion: marks });
       continue;
     }
 
@@ -1183,7 +1215,12 @@ export const updateTest = async (req, res) => {
     }
 
     connection.release();
-    
+
+    if (status === 'published') {
+    // Tell matching students (school + class) that the test is available
+    notifyStudentsForTest(id).catch(err => console.error('Failed to send test notifications:', err));
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Test updated successfully',
@@ -1252,6 +1289,12 @@ export const deleteTest = async (req, res) => {
         [id]
       );
 
+      // Remove "new test" notifications for this test (table exists once a test has been published)
+      const [notifTable] = await connection.query("SHOW TABLES LIKE 'notifications'");
+      if (notifTable.length > 0) {
+        await connection.execute('DELETE FROM notifications WHERE test_id = ?', [id]);
+      }
+
       // Delete the test
       const [result] = await connection.execute(
         'DELETE FROM tests WHERE id = ?',
@@ -1312,7 +1355,12 @@ export const toggleTestStatus = async (req, res) => {
     );
     
     connection.release();
-    
+
+    if (status === 'published') {
+    // Tell matching students (school + class) that the test is available
+    notifyStudentsForTest(id).catch(err => console.error('Failed to send test notifications:', err));
+    }
+
     return res.status(200).json({
       success: true,
       message: `Test ${status} successfully`
@@ -2015,7 +2063,10 @@ export const retestTest = async (req, res) => {
       [test.exam_id, test.subject_id, test.all_subjects, test.topic_id, test.subtopic_id, test.batch_id, newTitle, test.duration_minutes, test.total_marks, newStartTime, newEndTime, 'published', test.created_by, test.school_ids, test.is_randomized, test.section_config, id]
     );
     const newTestId = result.insertId;
-    
+    if (test.standard) {
+      await connection.execute('UPDATE tests SET standard = ? WHERE id = ?', [test.standard, newTestId]);
+    }
+
     // If it is NOT randomized, copy existing questions exactly
     if (!test.is_randomized) {
       const [questions] = await connection.execute('SELECT question_id FROM test_questions WHERE test_id = ?', [id]);
@@ -2027,9 +2078,40 @@ export const retestTest = async (req, res) => {
     await connection.commit();
     connection.release();
     
+    notifyStudentsForTest(newTestId).catch(err => console.error('Failed to send retest notifications:', err));
+
     return res.status(201).json({ success: true, message: 'Retest created successfully', testId: newTestId });
   } catch(e) {
     console.error('Error creating retest:', e);
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+// GET /api/admin/tests/notification-logs - in-app "new test" notifications sent to students, one row per test
+export const getNotificationLogs = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const [tbl] = await connection.query("SHOW TABLES LIKE 'notifications'");
+    if (tbl.length === 0) return res.status(200).json({ success: true, logs: [] });
+    const [rows] = await connection.query(
+      `SELECT n.test_id AS testId, MAX(n.title) AS title, MAX(n.message) AS message, MIN(n.created_at) AS sentAt,
+              COUNT(*) AS recipients, SUM(n.is_read = 1) AS readCount,
+              GROUP_CONCAT(DISTINCT sc.school_name ORDER BY sc.school_name SEPARATOR ', ') AS schools
+       FROM notifications n
+       LEFT JOIN school_students ss ON ss.user_id = n.user_id
+       LEFT JOIN schools sc ON sc.id = ss.school_id
+       GROUP BY n.test_id
+       ORDER BY sentAt DESC
+       LIMIT 200`
+    );
+    return res.status(200).json({
+      success: true,
+      logs: rows.map(r => ({ ...r, recipients: Number(r.recipients), readCount: Number(r.readCount || 0) })),
+    });
+  } catch (error) {
+    console.error('Error fetching notification logs:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching notification logs', error: error.message });
+  } finally {
+    connection.release();
   }
 };

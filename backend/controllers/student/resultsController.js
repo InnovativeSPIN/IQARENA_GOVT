@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { getAttemptQuestions, scoreAnswers } from '../../lib/attemptQuestions.js';
 
 // Get all test results for a student
 export const getStudentResults = async (req, res) => {
@@ -51,6 +52,19 @@ export const getStudentResults = async (req, res) => {
        ORDER BY sta.completed_at DESC`,
       [studentId]
     );
+
+    // Question count, total marks and score from the questions each attempt actually had
+    // (randomized multi-topic tests have no fixed test_questions; section marks apply)
+    for (const attempt of attempts) {
+      const set = await getAttemptQuestions(connection, attempt.attemptId, attempt.testId);
+      const [answerRows] = await connection.query(
+        'SELECT question_id AS questionId, selected_option AS selectedOption, is_correct AS isCorrect FROM student_answers WHERE attempt_id = ?',
+        [attempt.attemptId]
+      );
+      attempt.totalQuestions = set.ids.length;
+      attempt.totalMarks = set.totalMarks;
+      attempt.computedScore = scoreAnswers(answerRows, set.marks);
+    }
 
     // Transform data
     const results = attempts.map(attempt => {
@@ -190,23 +204,6 @@ export const getTestResultDetail = async (req, res) => {
       [testId, studentId]
     );
 
-    // compute actual totalMarks over test or child tests (for combined parent tests)
-    const [[testInfoForMarks]] = await connection.query('SELECT all_subjects, parent_test_id FROM tests WHERE id = ?', [testId]);
-    let testIdsForMarks = [testId];
-    if (testInfoForMarks && testInfoForMarks.all_subjects === 1 && testInfoForMarks.parent_test_id === null) {
-      const [childTests] = await connection.query('SELECT id FROM tests WHERE parent_test_id = ?', [testId]);
-      const ids = childTests.map(r => r.id);
-      if (ids.length > 0) testIdsForMarks = ids;
-    }
-    const placeholdersForMarks = testIdsForMarks.map(() => '?').join(',');
-    const [[tm]] = await connection.query(
-      `SELECT COALESCE(SUM(q.marks),0) as totalMarks FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id IN (${placeholdersForMarks})`,
-      testIdsForMarks
-    );
-    if (tm && typeof tm.totalMarks !== 'undefined') {
-      attempt.totalMarks = tm.totalMarks;
-    }
-
     if (!attempt) {
       connection.release();
       return res.status(404).json({
@@ -215,17 +212,10 @@ export const getTestResultDetail = async (req, res) => {
       });
     }
 
-    // Get questions for this attempt. Handle combined parent tests (all_subjects) by gathering child tests' questions
-    const [[testInfo]] = await connection.query('SELECT all_subjects, parent_test_id FROM tests WHERE id = ?', [testId]);
-
-    let questionTestIds = [testId];
-    if (testInfo && testInfo.all_subjects === 1 && testInfo.parent_test_id === null) {
-      const [childTests] = await connection.query('SELECT id FROM tests WHERE parent_test_id = ?', [testId]);
-      const ids = childTests.map(row => row.id);
-      if (ids.length > 0) questionTestIds = ids;
-    }
-
-    const placeholders = questionTestIds.map(() => '?').join(',');
+    // Questions this attempt actually had, in the order shown, with section marks applied
+    const attemptSet = await getAttemptQuestions(connection, attempt.attemptId, testId);
+    attempt.totalMarks = attemptSet.totalMarks;
+    const idList = attemptSet.ids.length ? attemptSet.ids.map(() => '?').join(',') : 'NULL';
 
     const [questions] = await connection.query(
       `SELECT
@@ -253,15 +243,14 @@ export const getTestResultDetail = async (req, res) => {
          qi.option_d AS optionDImg,
          qi.explanation AS explanationImg,
          s.name AS subjectName
-       FROM test_questions tq
-       JOIN questions q ON tq.question_id = q.id
+       FROM questions q
        LEFT JOIN student_answers sa ON sa.attempt_id = ? AND sa.question_id = q.id
        LEFT JOIN question_images qi ON q.use_img = qi.id
        LEFT JOIN topics tp ON q.topic_id = tp.id
        LEFT JOIN subjects s ON tp.subject_id = s.id
-       WHERE tq.test_id IN (${placeholders})
-       ORDER BY tq.id`,
-      [attempt.attemptId, ...questionTestIds]
+       WHERE q.id IN (${idList})
+       ORDER BY FIELD(q.id, ${idList})`,
+      [attempt.attemptId, ...attemptSet.ids, ...attemptSet.ids]
     );
 
     // Calculate stats
@@ -273,7 +262,7 @@ export const getTestResultDetail = async (req, res) => {
     // Calculate score from question correctness to ensure accuracy (handles negative marking)
     let computedScore = 0;
     questions.forEach(q => {
-      const marks = q.marks || 0;
+      const marks = attemptSet.marks.get(Number(q.id)) ?? (Number(q.marks) || 0);
       if (q.studentAnswer === null || q.studentAnswer === undefined) return;
       if (q.isCorrect === 1) computedScore += marks;
       else computedScore -= Math.round((marks * 0.25) * 100) / 100; // negative marking 25%
@@ -384,7 +373,7 @@ export const getTestResultDetail = async (req, res) => {
             isCorrect: q.isCorrect === 1,
             isMarkedForReview: q.isMarkedForReview === 1,
             explanation: q.explanation,
-            marks: q.marks,
+            marks: attemptSet.marks.get(Number(q.id)) ?? q.marks,
             images: q.question_img ? {
               question: formatImagePath(q.question_img),
               optionA: formatImagePath(q.optionAImg),

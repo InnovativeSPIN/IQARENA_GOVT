@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { ensureTestStandardColumn } from '../../lib/testNotifications.js';
 
 // Helper function to format time taken from seconds to readable format
 const formatTimeTaken = (seconds) => {
@@ -41,13 +42,17 @@ export const getAssignedTests = async (req, res) => {
       console.log('⚠️  Using test student user_id:', studentId);
     }
 
-    // Get student's batch and school
+    // Get student's batch and school; school students (school_students) have a school + class instead of a batch
     const [[studentRow]] = await connection.query(
-      'SELECT batch_id, school_id FROM students WHERE user_id = ?',
+      'SELECT batch_id FROM students WHERE user_id = ?',
+      [studentId]
+    );
+    const [[schoolStudent]] = await connection.query(
+      'SELECT school_id, standard FROM school_students WHERE user_id = ? LIMIT 1',
       [studentId]
     );
 
-    if (!studentRow || !studentRow.batch_id) {
+    if ((!studentRow || !studentRow.batch_id) && !schoolStudent) {
       connection.release();
       return res.status(404).json({
         success: false,
@@ -55,8 +60,10 @@ export const getAssignedTests = async (req, res) => {
       });
     }
 
-    const batchId = studentRow.batch_id;
-    const schoolId = studentRow.school_id;
+    const batchId = studentRow?.batch_id || null;
+    const schoolId = schoolStudent?.school_id ?? studentRow?.school_id ?? null;
+    const standard = schoolStudent?.standard || null;
+    await ensureTestStandardColumn(connection);
 
     const [tests] = await connection.query(
       `SELECT
@@ -65,7 +72,7 @@ export const getAssignedTests = async (req, res) => {
          t.duration_minutes AS duration,
          t.all_subjects,
          t.parent_test_id,
-         COALESCE((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0) as totalMarks,
+         COALESCE(NULLIF((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0), t.total_marks, 0) as totalMarks,
          t.start_time AS startTime,
          t.end_time AS endTime,
          t.created_at AS createdAt,
@@ -85,9 +92,10 @@ export const getAssignedTests = async (req, res) => {
        LEFT JOIN student_test_attempts sta ON sta.test_id = t.id AND sta.student_id = ?
        WHERE (t.batch_id = ? OR t.batch_id IS NULL) 
          AND t.status = 'published'
-         AND (t.school_ids IS NULL OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$'))
+         AND (t.school_ids IS NULL OR JSON_LENGTH(t.school_ids) = 0 OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$') OR JSON_CONTAINS(t.school_ids, JSON_QUOTE(CAST(? AS CHAR)), '$'))
+         AND (t.standard IS NULL OR t.standard = '' OR ? IS NULL OR FIND_IN_SET(?, t.standard) > 0)
        ORDER BY t.start_time`,
-      [studentId, batchId, schoolId]
+      [studentId, batchId, schoolId, schoolId, standard, standard]
     );
 
     // Transform data to match frontend format

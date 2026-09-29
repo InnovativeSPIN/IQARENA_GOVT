@@ -179,3 +179,30 @@ export const deleteExam = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error deleting exam', error: error.message });
   }
 };
+
+// Classes are listed only for the chosen schools: ?schoolIds=2,4
+export const listStandards = async (req, res) => {
+  const { examId, schoolIds } = req.query;
+  const ids = String(schoolIds || '').split(',').map(Number).filter(Boolean);
+  if (ids.length === 0) {
+    return res.status(200).json({ success: true, standards: [] });
+  }
+  try {
+    const connection = await pool.getConnection();
+    const params = [...ids];
+    let where = `WHERE status = 1 AND standard IS NOT NULL AND standard <> '' AND school_id IN (${ids.map(() => '?').join(',')})`;
+    if (examId) {
+      where += ' AND (exam_id = ? OR exam_id IS NULL)';
+      params.push(examId);
+    }
+    const [rows] = await connection.execute(
+      `SELECT standard, COUNT(*) AS studentCount FROM school_students ${where} GROUP BY standard ORDER BY standard`,
+      params
+    );
+    connection.release();
+    return res.status(200).json({ success: true, standards: rows });
+  } catch (error) {
+    console.error('Error fetching standards:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching standards', error: error.message });
+  }
+};

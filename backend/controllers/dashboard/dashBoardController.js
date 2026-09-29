@@ -14,17 +14,27 @@ import pool from '../../config/db.js';
 
 export const getAdminDashboardStats = async (req, res) => {
 	try {
+		const { schoolId } = req.query;
 		const connection = await pool.getConnection();
+
+		// Add schoolId filtering to users table if provided
+		let studentSchoolFilter = '';
+		let queryParams = [];
+		if (schoolId) {
+			studentSchoolFilter = ' AND school_id = ?';
+			queryParams.push(schoolId);
+		}
+
 		// Total students
-		const [[{ totalStudents }]] = await connection.query('SELECT COUNT(*) AS totalStudents FROM students');
+		const [[{ totalStudents }]] = await connection.query(`SELECT COUNT(*) AS totalStudents FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'STUDENT')${studentSchoolFilter}`, queryParams);
 		// Total faculty
-		const [[{ totalFaculty }]] = await connection.query(`SELECT COUNT(*) AS totalFaculty FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'FACULTY')`);
+		const [[{ totalFaculty }]] = await connection.query(`SELECT COUNT(*) AS totalFaculty FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'FACULTY')${studentSchoolFilter}`, queryParams);
 		// Total tests
 		const [[{ totalTests }]] = await connection.query('SELECT COUNT(*) AS totalTests FROM tests');
 		// Total questions
 		const [[{ totalQuestions }]] = await connection.query('SELECT COUNT(*) AS totalQuestions FROM questions');
-		// Active batches
-		const [[{ activeBatches }]] = await connection.query('SELECT COUNT(*) AS activeBatches FROM batches WHERE status = 1');
+		// Total schools
+		const [[{ totalSchools }]] = await connection.query('SELECT COUNT(*) AS totalSchools FROM schools WHERE status = 1');
 
 		// Fetch all exams
 		const [exams] = await connection.query('SELECT id, name FROM exams');
@@ -33,27 +43,37 @@ export const getAdminDashboardStats = async (req, res) => {
 		const examStudentCounts = {};
 		const examTestCounts = {};
 		const examQuestionCounts = {};
-		const examBatchCounts = {};
 		
 		for (const exam of exams) {
 			// Student count per exam
-			const [[{ studentCount }]] = await connection.query(
-				`SELECT COUNT(DISTINCT s.id) as studentCount
-				 FROM students s
-				 JOIN batches b ON s.batch_id = b.id
-				 WHERE b.exam_id = ?`,
-				[exam.id]
-			);
+			let examStudentQuery = `
+				SELECT COUNT(DISTINCT s.id) as studentCount
+				FROM school_students s
+				WHERE s.exam_id = ?
+			`;
+			let examStudentParams = [exam.id];
+			if (schoolId) {
+				examStudentQuery += ' AND s.school_id = ?';
+				examStudentParams.push(schoolId);
+			}
+
+			const [[{ studentCount }]] = await connection.query(examStudentQuery, examStudentParams);
 			examStudentCounts[exam.name] = studentCount;
 			
-			// Test count per exam
-			const [[{ testCount }]] = await connection.query(
-				`SELECT COUNT(*) as testCount
+			// Test count per exam (combine online tests + offline papers)
+			const [[{ testCount1 }]] = await connection.query(
+				`SELECT COUNT(*) as testCount1
 				 FROM tests
 				 WHERE exam_id = ?`,
 				[exam.id]
 			);
-			examTestCounts[exam.name] = testCount;
+			const [[{ testCount2 }]] = await connection.query(
+				`SELECT COUNT(*) as testCount2
+				 FROM offline_papers
+				 WHERE exam_id = ?`,
+				[exam.id]
+			);
+			examTestCounts[exam.name] = testCount1 + testCount2;
 			
 			// Question count per exam (using exam_type column)
 			const [[{ questionCount }]] = await connection.query(
@@ -63,16 +83,19 @@ export const getAdminDashboardStats = async (req, res) => {
 				[exam.name]
 			);
 			examQuestionCounts[exam.name] = questionCount;
-			
-			// Active batch count per exam
-			const [[{ batchCount }]] = await connection.query(
-				`SELECT COUNT(*) as batchCount
-				 FROM batches
-				 WHERE exam_id = ? AND status = 1`,
-				[exam.id]
-			);
-			examBatchCounts[exam.name] = batchCount;
 		}
+
+		// Fetch School Student Counts for Graph
+		const [schoolStudentCounts] = await connection.query(`
+			SELECT s.school_name as schoolName, COUNT(u.id) as studentCount
+			FROM schools s
+			LEFT JOIN users u ON s.id = u.school_id AND u.role_id = (SELECT id FROM roles WHERE name = 'STUDENT')
+			GROUP BY s.id, s.school_name
+			ORDER BY studentCount DESC
+		`);
+
+		// Fetch list of schools for the filter dropdown
+		const [schools] = await connection.query('SELECT id, school_name as name FROM schools WHERE status = 1 ORDER BY school_name');
 
 		connection.release();
 		return res.status(200).json({
@@ -82,13 +105,14 @@ export const getAdminDashboardStats = async (req, res) => {
 				totalFaculty,
 				totalTests,
 				totalQuestions,
-				activeBatches,
+				totalSchools,
 				examStudentCounts,
 				examTestCounts,
 				examQuestionCounts,
-				examBatchCounts,
+				schoolStudentCounts
 			},
 			exams,
+			schools
 		});
 	} catch (error) {
 		console.error('Error fetching dashboard stats:', error);
@@ -146,16 +170,24 @@ export const getStudentDashboardStats = async (req, res) => {
       [studentId]
     );
 
+    // School students have a school + class instead of a batch
+    const [[schoolStudent]] = await connection.query(
+      'SELECT school_id, standard FROM school_students WHERE user_id = ? LIMIT 1',
+      [studentId]
+    );
+
     let upcomingTests = [];
-    if (studentRow && studentRow.batch_id) {
-      const batchId = studentRow.batch_id;
+    if ((studentRow && studentRow.batch_id) || schoolStudent) {
+      const batchId = studentRow?.batch_id || null;
+      const schoolId = schoolStudent?.school_id ?? null;
+      const standard = schoolStudent?.standard || null;
 
       const [upcomingRows] = await connection.query(
         `SELECT
            t.id,
            t.title,
            t.duration_minutes AS duration,
-           COALESCE((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0) as totalMarks,
+           COALESCE(NULLIF((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0), t.total_marks, 0) as totalMarks,
            t.start_time AS startTime,
            t.end_time AS endTime,
            t.status,
@@ -164,12 +196,14 @@ export const getStudentDashboardStats = async (req, res) => {
             WHERE sta.test_id = t.id AND sta.student_id = ?) AS attemptCount
          FROM tests t
          JOIN exams e ON t.exam_id = e.id
-         WHERE t.batch_id = ?
+         WHERE (t.batch_id = ? OR (t.batch_id IS NULL AND ? IS NULL))
+           AND (? IS NULL OR t.school_ids IS NULL OR JSON_LENGTH(t.school_ids) = 0 OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$') OR JSON_CONTAINS(t.school_ids, JSON_QUOTE(CAST(? AS CHAR)), '$'))
+           AND (? IS NULL OR t.standard IS NULL OR t.standard = '' OR FIND_IN_SET(?, t.standard) > 0)
            AND t.status = 'published'
            AND (t.start_time IS NULL OR t.start_time >= NOW() - INTERVAL 1 HOUR)
          ORDER BY t.start_time ASC
          LIMIT 5`,
-        [studentId, batchId]
+        [studentId, batchId, batchId, schoolId, schoolId, schoolId, standard, standard]
       );
 
       const now = new Date();
