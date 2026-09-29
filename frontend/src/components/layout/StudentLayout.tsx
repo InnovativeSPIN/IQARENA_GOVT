@@ -182,13 +182,61 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
           </div>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 min-h-[calc(100vh-4rem)]">
-          <div className="p-6 max-w-7xl mx-auto">
-            {children}
-          </div>
+        {/* Mobile backdrop */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-slate-900/30 lg:hidden backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* ── Main Content (pb-20 on mobile so bottom bar does not overlap content) ── */}
+        <main className="flex-1 min-w-0 p-4 pb-20 sm:p-6 sm:pb-6 lg:p-7 max-w-[1360px]">
+          {children}
         </main>
       </div>
+
+      {/* ── Mobile Bottom Navigation Bar (Thumb-friendly & Accessible) ────────── */}
+      <nav
+        aria-label="Mobile Bottom Navigation"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg px-2 py-1.5 flex items-center justify-around select-none"
+      >
+        {mainNav.map(item => {
+          const Icon = item.icon;
+          const active = isActive(item.path);
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                'flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all relative',
+                active
+                  ? 'text-teal-600 font-semibold'
+                  : 'text-slate-500 hover:text-slate-800'
+              )}
+              aria-current={active ? 'page' : undefined}
+            >
+              <div className="relative">
+                <Icon
+                  className={cn(
+                    'w-5 h-5 transition-transform',
+                    active ? 'scale-110 text-teal-600 stroke-[2.25]' : 'stroke-[1.75]'
+                  )}
+                />
+                {item.badge && (
+                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold h-3.5 w-3.5 rounded-full flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
