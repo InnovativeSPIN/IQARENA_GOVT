@@ -267,7 +267,7 @@ export default function Login() {
                 </div>
                 
                 <p className="text-sm sm:text-base text-orange-100/90 font-medium max-w-sm">
-                  State Online Exam & Assessment Management Portal
+                   Online Exam & Assessment Management Portal
                 </p>
 
                 {/* Quote Box */}
