@@ -305,7 +305,7 @@ export const getStudentDashboardStats = async (req, res) => {
         percentage,
         completedAt: row.completedAt,
         status: 'submitted', // Always 'submitted' for completed attempts
-        markPublish: !!row.markPublish
+        markPublish: true /* results are released as soon as a test is submitted */
       };
     }));
 

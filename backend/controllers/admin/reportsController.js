@@ -1,5 +1,27 @@
 import pool from '../../config/db.js';
 import { ensureTestStandardColumn } from '../../lib/testNotifications.js';
+import { getAnswerSheet } from '../../lib/answerSheet.js';
+
+// GET /api/admin/reports/tests/:testId/students/:studentId/answers  (studentId = school_students.id)
+export const getStudentAnswerSheet = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const [[student]] = await connection.query(
+      `SELECT ss.id, ss.student_name AS name, ss.emis_no AS emisNo, ss.standard, ss.section, ss.user_id AS userId, sc.school_name AS schoolName
+       FROM school_students ss JOIN schools sc ON sc.id = ss.school_id WHERE ss.id = ?`,
+      [req.params.studentId]
+    );
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    const sheet = student.userId ? await getAnswerSheet(connection, student.userId, Number(req.params.testId)) : null;
+    if (!sheet) return res.status(404).json({ success: false, message: 'This student has not attempted the test' });
+    res.json({ success: true, student, ...sheet });
+  } catch (error) {
+    console.error('Answer sheet error:', error);
+    res.status(500).json({ success: false, message: 'Error loading answer sheet', error: error.message });
+  } finally {
+    connection.release();
+  }
+};
 
 /*
  * Admin reports: results of published tests, filterable by school, test and class.

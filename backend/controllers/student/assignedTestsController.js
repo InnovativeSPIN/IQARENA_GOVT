@@ -81,6 +81,7 @@ export const getAssignedTests = async (req, res) => {
          e.name AS examType,
          s.name AS subject,
          (SELECT COUNT(*) FROM test_questions WHERE test_id = t.id) AS totalQuestions,
+         t.section_config AS sectionConfig,
          COALESCE(sta.status, 'not_started') AS attemptStatus,
          sta.score AS obtainedScore,
          sta.time_taken AS timeTaken,
@@ -104,6 +105,15 @@ export const getAssignedTests = async (req, res) => {
       let isActive = false;
       let actualTotalMarks = test.totalMarks;
       let actualTotalQuestions = test.totalQuestions;
+      // Randomized multi-topic tests have no fixed question list: count what each section will draw
+      if (!Number(actualTotalQuestions) && test.sectionConfig) {
+        try {
+          const cfg = typeof test.sectionConfig === 'string' ? JSON.parse(test.sectionConfig) : test.sectionConfig;
+          if (Array.isArray(cfg)) {
+            actualTotalQuestions = cfg.reduce((sum, a) => sum + (Array.isArray(a.questionIds) && a.questionIds.length ? a.questionIds.length : Number(a.questionCount) || 0), 0);
+          }
+        } catch { /* keep the stored count */ }
+      }
       
       // Check if this is a combined test and calculate actual totals
       if (test.all_subjects === 1 && test.parent_test_id === null) {
@@ -170,7 +180,7 @@ export const getAssignedTests = async (req, res) => {
         isActive: isActive,
         subjects: test.subject ? [test.subject] : [],
         rawStatus: test.status,
-        markPublish: !!test.mark_publish,
+        markPublish: true /* results are released as soon as a test is submitted */,
         obtainedScore: test.obtainedScore,
         percentage: test.obtainedScore !== null && test.obtainedScore !== undefined && actualTotalMarks
           ? Number(((test.obtainedScore / actualTotalMarks) * 100).toFixed(1))

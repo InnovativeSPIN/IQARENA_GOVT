@@ -172,7 +172,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_notif_user_test_type` (`user_id`,`test_id`,`type`),
   KEY `idx_notif_user` (`user_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -542,7 +542,7 @@ CREATE TABLE `student_answers` (
   KEY `idx_question_id` (`question_id`),
   CONSTRAINT `student_answers_ibfk_1` FOREIGN KEY (`attempt_id`) REFERENCES `student_test_attempts` (`id`) ON DELETE CASCADE,
   CONSTRAINT `student_answers_ibfk_2` FOREIGN KEY (`question_id`) REFERENCES `questions` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -569,7 +569,7 @@ CREATE TABLE `student_test_attempt_questions` (
   PRIMARY KEY (`id`),
   KEY `attempt_id` (`attempt_id`),
   CONSTRAINT `student_test_attempt_questions_ibfk_1` FOREIGN KEY (`attempt_id`) REFERENCES `student_test_attempts` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=50 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -608,7 +608,7 @@ CREATE TABLE `student_test_attempts` (
   CONSTRAINT `fk_sta_school_student` FOREIGN KEY (`school_student_id`) REFERENCES `school_students` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `student_test_attempts_ibfk_1` FOREIGN KEY (`test_id`) REFERENCES `tests` (`id`) ON DELETE CASCADE,
   CONSTRAINT `student_test_attempts_ibfk_2` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -754,7 +754,7 @@ CREATE TABLE `test_questions` (
   KEY `question_id` (`question_id`),
   CONSTRAINT `test_questions_ibfk_1` FOREIGN KEY (`test_id`) REFERENCES `tests` (`id`),
   CONSTRAINT `test_questions_ibfk_2` FOREIGN KEY (`question_id`) REFERENCES `questions` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -814,7 +814,7 @@ CREATE TABLE `tests` (
   CONSTRAINT `tests_ibfk_1` FOREIGN KEY (`exam_id`) REFERENCES `exams` (`id`) ON DELETE CASCADE,
   CONSTRAINT `tests_ibfk_2` FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`) ON DELETE SET NULL,
   CONSTRAINT `tests_ibfk_3` FOREIGN KEY (`batch_id`) REFERENCES `batches` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -823,7 +823,7 @@ CREATE TABLE `tests` (
 
 LOCK TABLES `tests` WRITE;
 /*!40000 ALTER TABLE `tests` DISABLE KEYS */;
-INSERT INTO `tests` VALUES (10,NULL,6,NULL,0,NULL,NULL,NULL,NULL,'SAM',10,10,'2026-09-29 19:41:00','2026-09-29 20:41:00','published',10,'2026-09-29 14:12:07','2026-09-29 14:12:22',0,1,'[{\"topicId\": 5, \"subjectId\": 17, \"subtopicId\": null, \"questionIds\": [5, 7, 10, 11, 6], \"questionCount\": 5, \"marksPerQuestion\": 1}, {\"topicId\": null, \"subjectId\": 16, \"subtopicId\": null, \"questionIds\": [939, 936, 940, 946, 949], \"questionCount\": 5, \"marksPerQuestion\": 1}]','[\"2\"]','VII');
+INSERT INTO `tests` VALUES (10,NULL,6,NULL,0,NULL,NULL,NULL,NULL,'SAM',10,10,'2026-09-29 19:41:00','2026-09-29 20:41:00','published',10,'2026-09-29 14:12:07','2026-09-29 17:19:58',0,1,'[{\"topicId\": 5, \"subjectId\": 17, \"subtopicId\": null, \"questionIds\": [5, 7, 10, 11, 6], \"questionCount\": 5, \"marksPerQuestion\": 1}, {\"topicId\": null, \"subjectId\": 16, \"subtopicId\": null, \"questionIds\": [939, 936, 940, 946, 949], \"questionCount\": 5, \"marksPerQuestion\": 1}]','[\"2\"]','VII');
 /*!40000 ALTER TABLE `tests` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -929,4 +929,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-29 22:42:31
+-- Dump completed on 2026-09-29 22:54:22

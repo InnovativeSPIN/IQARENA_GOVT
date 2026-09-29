@@ -7,6 +7,7 @@ import {
   getSchoolTests,
   getSchoolTestReport,
   getSchoolNotifications,
+  getSchoolStudentAnswers,
 } from '../../controllers/faculty/facultySchoolController.js';
 
 // School monitoring: every endpoint is limited to the faculty's own school
@@ -17,6 +18,7 @@ router.get('/school/students', verifyFaculty, getSchoolStudents);
 router.get('/school/students/:id', verifyFaculty, getSchoolStudentDetail);
 router.get('/school/tests', verifyFaculty, getSchoolTests);
 router.get('/school/tests/:id/report', verifyFaculty, getSchoolTestReport);
+router.get('/school/tests/:testId/students/:studentId/answers', verifyFaculty, getSchoolStudentAnswers);
 router.get('/school/notifications', verifyFaculty, getSchoolNotifications);
 
 export default router;

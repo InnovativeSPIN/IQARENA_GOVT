@@ -1,6 +1,7 @@
 import pool from '../../config/db.js';
 import bcrypt from 'bcryptjs';
 import { ensureTestStandardColumn } from '../../lib/testNotifications.js';
+import { getAnswerSheet } from '../../lib/answerSheet.js';
 
 /*
  * School monitoring for faculty.
@@ -375,6 +376,18 @@ export const getSchoolNotifications = (req, res) => withSchool(req, res, async (
     school,
     notifications: rows.map(r => ({ ...r, recipients: Number(r.recipients), readCount: Number(r.readCount || 0) })),
   });
+});
+
+// GET /api/faculty/school/tests/:testId/students/:studentId/answers - one of this school's students' answer sheet
+export const getSchoolStudentAnswers = (req, res) => withSchool(req, res, async (connection, school) => {
+  const [[student]] = await connection.query(
+    'SELECT id, student_name AS name, emis_no AS emisNo, standard, section, user_id AS userId FROM school_students WHERE id = ? AND school_id = ?',
+    [req.params.studentId, school.schoolId]
+  );
+  if (!student) return res.status(404).json({ success: false, message: 'Student not found in your school' });
+  const sheet = student.userId ? await getAnswerSheet(connection, student.userId, Number(req.params.testId)) : null;
+  if (!sheet) return res.status(404).json({ success: false, message: 'This student has not attempted the test' });
+  res.json({ success: true, student, ...sheet });
 });
 
 // POST /api/faculty/school/students/:id/reset-password  { password: '123456' }
