@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, BarChart3, Bell, User, LogOut, ChevronDown, Users } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Bell, User, LogOut, ChevronDown, Users, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FacultyLayoutProps {
@@ -22,6 +22,7 @@ const navItems = [
   { path: '/faculty', icon: LayoutDashboard, label: 'Dashboard', short: 'Home', exact: true },
   { path: '/faculty/students', icon: Users, label: 'Students', short: 'Students' },
   { path: '/faculty/reports', icon: BarChart3, label: 'Test Reports', short: 'Reports' },
+  { path: '/faculty/messages', icon: MessageSquare, label: 'Messages', short: 'Messages' },
   { path: '/faculty/notifications', icon: Bell, label: 'Notifications', short: 'Alerts' },
 ];
 
@@ -104,7 +105,7 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
 
       {/* Mobile bottom navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {navItems.map(item => {
             const active = isActive(item);
             return (

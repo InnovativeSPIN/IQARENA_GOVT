@@ -113,12 +113,12 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] w-72 bg-sidebar text-white border-r border-sidebar-border shadow-lg transform transition-transform duration-300 lg:static lg:shadow-none lg:sticky lg:top-16",
+            "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] h-[calc(100dvh-4rem)] w-72 bg-sidebar text-white border-r border-sidebar-border shadow-lg transform transition-transform duration-300 lg:static lg:shadow-none lg:sticky lg:top-16",
             isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           )}
         >
           <div className="h-full flex flex-col overflow-hidden">
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
+            <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
               {mainNav.map((item) => (
                 <Link
                   key={item.path}
@@ -169,7 +169,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
               ))} 
             </nav>
             
-            <div className="flex-shrink-0 p-4 border-t border-sidebar-border bg-sidebar">
+            <div className="flex-shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-sidebar-border bg-sidebar">
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3 text-white/90 hover:text-orange-700 hover:bg-white hover:bg-opacity-10 font-medium"

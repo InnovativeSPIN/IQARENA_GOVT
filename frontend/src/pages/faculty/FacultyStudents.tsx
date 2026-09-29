@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, AlertCircle } from 'lucide-react';
+import { Search, AlertCircle, KeyRound } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   FacultySchool, SchoolStudentRow, SchoolStudentHistory, formatDateTime, formatDuration, percentTone,
 } from '@/types/facultySchool';
@@ -45,7 +46,30 @@ export default function FacultyStudents() {
       .finally(() => setLoading(false));
   }, [standard]);
 
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [resetting, setResetting] = useState(false);
+
+  const resetPin = async () => {
+    if (detailId == null) return;
+    setResetting(true);
+    try {
+      const res = await apiFetch<{ success: boolean; message?: string }>(`/faculty/school/students/${detailId}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password: newPin }),
+      });
+      if (!res?.success) throw new Error(res?.message || 'Could not reset PIN');
+      toast.success(res.message || 'PIN reset');
+      setNewPin(''); setConfirmPin('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not reset PIN');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   useEffect(() => {
+    setNewPin(''); setConfirmPin('');
     if (detailId == null) { setDetail(null); return; }
     apiFetch<{ success: boolean; student: SchoolStudentRow; history: SchoolStudentHistory[] }>(`/faculty/school/students/${detailId}`)
       .then(res => { if (res?.success) setDetail({ student: res.student, history: res.history }); })
@@ -184,6 +208,27 @@ export default function FacultyStudents() {
                 </table>
               </div>
             )
+          )}
+          {/* Reset the student's 6-digit login PIN */}
+          {detail && (
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-sm font-semibold flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-primary" /> Reset login PIN</p>
+              {detail.student.hasLogin ? (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input inputMode="numeric" maxLength={6} placeholder="New 6-digit PIN" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))} />
+                    <Input inputMode="numeric" maxLength={6} placeholder="Confirm PIN" value={confirmPin} onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))} />
+                    <Button onClick={resetPin} disabled={resetting || newPin.length !== 6 || newPin !== confirmPin}>
+                      {resetting ? 'Saving...' : 'Reset PIN'}
+                    </Button>
+                  </div>
+                  {confirmPin.length === 6 && newPin !== confirmPin && <p className="text-xs text-destructive">PINs do not match</p>}
+                  <p className="text-xs text-muted-foreground">Share the new PIN with the student. They log in with their EMIS number ({detail.student.emisNo}) and this PIN.</p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">This student has no login account yet, so there is no PIN to reset. Ask the admin to create their account.</p>
+              )}
+            </div>
           )}
           <div className="flex justify-end"><Button variant="outline" onClick={() => setDetailId(null)}>Close</Button></div>
         </DialogContent>

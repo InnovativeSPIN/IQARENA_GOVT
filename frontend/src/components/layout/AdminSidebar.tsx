@@ -16,6 +16,8 @@ import {
   LogOut,
   Layers,
   Building,
+  BarChart3,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +32,8 @@ const menuItems = [
   { icon: FileText, label: 'Topic Management', path: '/admin/topics' },
   { icon: HelpCircle, label: 'Question Bank', path: '/admin/questions' },
   { icon: ClipboardList, label: 'Test Management', path: '/admin/tests' },
+  { icon: BarChart3, label: 'Reports', path: '/admin/reports' },
+  { icon: MessageSquare, label: 'Messages', path: '/admin/messages' },
   { icon: Bell, label: 'Notification Logs', path: '/admin/notifications' },
 ];
 
@@ -48,7 +52,8 @@ export function AdminSidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen transition-all duration-300 flex flex-col',
+        // 100dvh = visible height on phones too, so the Logout button never sits under the browser bar
+        'fixed left-0 top-0 z-40 h-screen h-[100dvh] transition-all duration-300 flex flex-col',
         'bg-sidebar border-r border-sidebar-border',
         collapsed ? 'w-20' : 'w-64'
       )}
@@ -74,7 +79,7 @@ export function AdminSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+      <nav className="flex-1 min-h-0 overflow-y-auto py-4 px-3 scrollbar-hide">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -82,6 +87,7 @@ export function AdminSidebar() {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
+                  end
                   className={cn(
                     'sidebar-link',
                     isActive && 'active',
@@ -99,7 +105,7 @@ export function AdminSidebar() {
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t border-sidebar-border p-3">
+      <div className="shrink-0 border-t border-sidebar-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button
           variant="ghost"
           onClick={handleLogout}

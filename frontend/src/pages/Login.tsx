@@ -281,6 +281,14 @@ export default function Login() {
                     </footer>
                   </blockquote>
                 </div>
+
+                <div className="mt-6 sm:mt-10 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 fill-mode-both">
+                  <span className="h-px w-8 sm:w-12 bg-gradient-to-r from-transparent to-white/70" />
+                  <p className="nscet-shimmer text-xs sm:text-sm font-bold tracking-[0.25em] uppercase">
+                    A Product of NSCET
+                  </p>
+                  <span className="h-px w-8 sm:w-12 bg-gradient-to-l from-transparent to-white/70" />
+                </div>
               </div>
             </div>
 

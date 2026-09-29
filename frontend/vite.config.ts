@@ -15,6 +15,12 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, '/api')
+      },
+      // Uploaded files (question images, message attachments) are served by the backend
+      '/uploads': {
+        target: 'http://127.0.0.1:3010',
+        changeOrigin: true,
+        secure: false,
       }
     }
   },

@@ -39,6 +39,9 @@ import FacultyNotifications from "./pages/faculty/FacultyNotifications";
 import FacultyProfile from "./pages/faculty/FacultyProfile";
 import FacultyStudents from "./pages/faculty/FacultyStudents";
 import FacultyReports from "./pages/faculty/FacultyReports";
+import FacultyMessages from "./pages/faculty/FacultyMessages";
+import AdminReports from "./pages/admin/Reports";
+import AdminMessages from "./pages/admin/Messages";
 
 const queryClient = new QueryClient();
 
@@ -102,6 +105,8 @@ function AppRoutes() {
       <Route path="/admin/questions" element={<ProtectedRoute allowedRoles={['ADMIN']}><QuestionManagement /></ProtectedRoute>} />
       <Route path="/admin/tests" element={<ProtectedRoute allowedRoles={['ADMIN']}><TestManagement /></ProtectedRoute>} />
       <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['ADMIN']}><NotificationLogs /></ProtectedRoute>} />
+      <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminReports /></ProtectedRoute>} />
+      <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminMessages /></ProtectedRoute>} />
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
@@ -124,6 +129,7 @@ function AppRoutes() {
       <Route path="/faculty/students" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyStudents /></FacultyLayout></ProtectedRoute>} />
       <Route path="/faculty/reports" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyReports /></FacultyLayout></ProtectedRoute>} />
       <Route path="/faculty/reports/:testId" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyReports /></FacultyLayout></ProtectedRoute>} />
+      <Route path="/faculty/messages" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyMessages /></FacultyLayout></ProtectedRoute>} />
       <Route path="/faculty/profile" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyProfile /></FacultyLayout></ProtectedRoute>} />
 
       {/* Fallback 404 Route */}
