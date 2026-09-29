@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Download, Printer, BarChart3 } from 'lucide-react';
+import AnswerSheetDialog from '@/components/reports/AnswerSheetDialog';
 
 interface Filters {
   schools: Array<{ id: number; name: string }>;
@@ -51,6 +52,8 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'not_attempted'>('completed');
+  // Student whose answer sheet is open (school_students.id)
+  const [sheetStudentId, setSheetStudentId] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch<Filters & { success: boolean }>('/admin/reports/filters')
@@ -205,9 +208,17 @@ export default function Reports() {
                   {visibleStudents.length === 0 ? (
                     <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">No students for these filters.</td></tr>
                   ) : visibleStudents.map(s => (
-                    <tr key={s.schoolStudentId}>
+                    <tr
+                      key={s.schoolStudentId}
+                      className={s.status === 'completed' ? 'cursor-pointer hover:bg-muted/40' : ''}
+                      onClick={() => { if (s.status === 'completed') setSheetStudentId(s.schoolStudentId); }}
+                      title={s.status === 'completed' ? "View this student's answers" : undefined}
+                    >
                       <td className="px-3 py-2 font-semibold">{s.rank ?? '—'}</td>
-                      <td className="px-3 py-2"><p className="font-medium">{s.name}</p><p className="text-xs text-muted-foreground font-mono">{s.emisNo}</p></td>
+                      <td className="px-3 py-2">
+                        <p className="font-medium">{s.name}</p><p className="text-xs text-muted-foreground font-mono">{s.emisNo}</p>
+                        {s.status === 'completed' && <p className="text-[11px] text-primary font-medium print:hidden">View answers →</p>}
+                      </td>
                       <td className="px-3 py-2">{s.schoolName}</td>
                       <td className="px-3 py-2">{s.standard}{s.section ? `-${s.section}` : ''}</td>
                       <td className="px-3 py-2">
@@ -265,6 +276,11 @@ export default function Reports() {
           </div>
         )}
       </div>
+
+      <AnswerSheetDialog
+        endpoint={sheetStudentId != null && report ? `/admin/reports/tests/${report.test.id}/students/${sheetStudentId}/answers` : null}
+        onClose={() => setSheetStudentId(null)}
+      />
     </AdminLayout>
   );
 }

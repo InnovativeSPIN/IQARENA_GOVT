@@ -452,24 +452,19 @@ export default function AssignedTests() {
 
                           <div className="shrink-0">
                             {(() => {
-                              const isSubmitted = test.status === 'submitted';
-                              const hasScore = typeof test.obtainedScore !== 'undefined' && test.obtainedScore !== null;
-                              const publishedExplicit = typeof test.markPublish !== 'undefined';
-                              const published = publishedExplicit ? !!test.markPublish : hasScore;
-
-                              if (isSubmitted && published) {
+                              // Results are available as soon as the test is submitted (no separate "publish marks" step)
+                              if (test.status === 'submitted') {
+                                const hasScore = typeof test.obtainedScore !== 'undefined' && test.obtainedScore !== null;
                                 return (
-                                  <Link to={`/student/results/${test.id}`}>
-                                    <Button variant="outline" size="sm">View Result</Button>
-                                  </Link>
-                                );
-                              }
-
-                              if (isSubmitted && !published) {
-                                return (
-                                  <div>
-                                    <Badge variant="outline">Marks Not Published</Badge>
-                                    <p className="text-xs text-muted-foreground mt-1">Marks will be published by the faculty soon.</p>
+                                  <div className="flex flex-col items-end gap-1">
+                                    {hasScore && (
+                                      <span className="text-sm font-semibold text-foreground">
+                                        {test.obtainedScore}{test.totalMarks ? ` / ${test.totalMarks}` : ''}
+                                      </span>
+                                    )}
+                                    <Link to={`/student/results/${test.id}`}>
+                                      <Button variant="outline" size="sm">View Result</Button>
+                                    </Link>
                                   </div>
                                 );
                               }
@@ -483,6 +478,16 @@ export default function AssignedTests() {
                               }
 
                               if (test.rawStatus === 'published') {
+                                // Only offer Start while the test window is open
+                                const now = new Date();
+                                const start = test.startTime ? new Date(test.startTime) : null;
+                                const end = test.endTime ? new Date(test.endTime) : null;
+                                if (start && now < start) {
+                                  return <Button size="sm" disabled className="gap-1.5"><Clock className="h-4 w-4" />Opens soon</Button>;
+                                }
+                                if (end && now > end) {
+                                  return <Button size="sm" disabled className="gap-1.5"><Clock className="h-4 w-4" />Test ended</Button>;
+                                }
                                 return (
                                   <Link to={`/student/exam/${test.id}`}>
                                     <Button size="sm" className="gap-1.5"><Play className="h-4 w-4" />Start Test</Button>

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AlertCircle, ArrowLeft, Download, Printer, Search } from 'lucide-react';
+import AnswerSheetDialog from '@/components/reports/AnswerSheetDialog';
 import {
   FacultySchool, SchoolTestRow, SchoolTestReport, formatDateTime, formatDuration, percentTone,
 } from '@/types/facultySchool';
@@ -116,6 +117,8 @@ function ReportDetail({ testId }: { testId: string }) {
   const [tab, setTab] = useState<'students' | 'questions'>('students');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'not_attempted'>('all');
   const [search, setSearch] = useState('');
+  // Student whose answer sheet is open (school_students.id)
+  const [sheetStudentId, setSheetStudentId] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch<SchoolTestReport & { success: boolean; message?: string }>(`/faculty/school/tests/${testId}/report`)
@@ -237,11 +240,17 @@ function ReportDetail({ testId }: { testId: string }) {
                   {students.length === 0 ? (
                     <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">No students match.</td></tr>
                   ) : students.map(s => (
-                    <tr key={s.schoolStudentId}>
+                    <tr
+                      key={s.schoolStudentId}
+                      className={s.status === 'completed' ? 'cursor-pointer hover:bg-muted/40' : ''}
+                      onClick={() => { if (s.status === 'completed') setSheetStudentId(s.schoolStudentId); }}
+                      title={s.status === 'completed' ? "View this student's answers" : undefined}
+                    >
                       <td className="px-4 py-2 font-semibold">{s.rank ?? '—'}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium">{s.name}</p>
                         <p className="text-xs text-muted-foreground font-mono">{s.emisNo}</p>
+                        {s.status === 'completed' && <p className="text-[11px] text-primary font-medium print:hidden">View answers →</p>}
                       </td>
                       <td className="px-3 py-2">{s.standard}{s.section ? `-${s.section}` : ''}</td>
                       <td className="px-3 py-2">
@@ -310,6 +319,11 @@ function ReportDetail({ testId }: { testId: string }) {
           </CardContent>
         </Card>
       )}
+
+      <AnswerSheetDialog
+        endpoint={sheetStudentId != null ? `/faculty/school/tests/${testId}/students/${sheetStudentId}/answers` : null}
+        onClose={() => setSheetStudentId(null)}
+      />
     </div>
   );
 }

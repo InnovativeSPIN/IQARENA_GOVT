@@ -401,6 +401,35 @@ export default function ResultDetail() {
                           ) : (
                             <p className="text-sm text-foreground line-clamp-2">{question.questionText}</p>
                           )}
+
+                          {/* Always-visible answer summary: what the student picked vs the correct option */}
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-muted-foreground font-medium">Your answer:</span>
+                            {question.studentAnswer ? (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold",
+                                questionStatus === 'correct' ? "border-success bg-success/10 text-success" : "border-destructive bg-destructive/10 text-destructive"
+                              )}>
+                                {questionStatus === 'correct' ? <CheckCircle className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                                {question.studentAnswer}
+                                {question[`option${question.studentAnswer}` as keyof typeof question] ? ` · ${String(question[`option${question.studentAnswer}` as keyof typeof question])}` : ''}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-muted-foreground">
+                                <MinusCircle className="h-3.5 w-3.5" /> Not answered
+                              </span>
+                            )}
+                            {questionStatus !== 'correct' && question.correctAnswer && (
+                              <>
+                                <span className="text-muted-foreground font-medium ml-1">Correct:</span>
+                                <span className="inline-flex items-center gap-1 rounded-full border border-success bg-success/10 px-2 py-0.5 font-semibold text-success">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  {question.correctAnswer}
+                                  {question[`option${question.correctAnswer}` as keyof typeof question] ? ` · ${String(question[`option${question.correctAnswer}` as keyof typeof question])}` : ''}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                         {expandedQuestion === question.id.toString() ? (
                           <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -471,12 +500,22 @@ export default function ResultDetail() {
                                       )}
                                     </div>
                                   )}
-                                  {isCorrect && (
-                                    <CheckCircle className="h-4 w-4 text-success ml-auto" />
-                                  )}
-                                  {isSelected && !isCorrect && (
-                                    <XCircle className="h-4 w-4 text-destructive ml-auto" />
-                                  )}
+                                  <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                                    {isSelected && (
+                                      <span className={cn(
+                                        "text-[11px] font-semibold rounded-full px-2 py-0.5",
+                                        isCorrect ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"
+                                      )}>
+                                        Your answer
+                                      </span>
+                                    )}
+                                    {isCorrect && (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-success">
+                                        <CheckCircle className="h-4 w-4" /> Correct answer
+                                      </span>
+                                    )}
+                                    {isSelected && !isCorrect && <XCircle className="h-4 w-4 text-destructive" />}
+                                  </div>
                                 </div>
                               );
                             })}
