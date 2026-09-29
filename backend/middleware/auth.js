@@ -94,3 +94,17 @@ export default {
 	verifyAdmin,
 	verifyStudent
 };
+
+// Attach req.user when a valid Bearer token is sent; never rejects the request
+export const optionalAuth = (req, _res, next) => {
+	const authHeader = req.headers.authorization || '';
+	if (authHeader.startsWith('Bearer ')) {
+		try {
+			const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || '1223');
+			req.user = { id: decoded.userId, name: decoded.name, phone: decoded.phone, role: decoded.role };
+		} catch {
+			/* invalid or expired token: continue as anonymous */
+		}
+	}
+	next();
+};
