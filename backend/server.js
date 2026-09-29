@@ -23,8 +23,11 @@ import dashboardRoutes from './routes/dashboard/dashboardRoutes.js';
 import studentTestRoutes from './routes/student/studentTestRoutes.js';
 import facultyRoutes from './routes/faculty/facultyDashboardRoutes.js';
 import facultyTestRoutes from './routes/faculty/facultyTestRoutes.js';
+import facultySchoolRoutes from './routes/faculty/facultySchoolRoutes.js';
 import assignedTestsRoutes from './routes/student/assignedTestsRoutes.js';
 import resultsRoutes from './routes/student/resultsRoutes.js';
+import { optionalAuth } from './middleware/auth.js';
+import studentNotificationsRoutes from './routes/student/notificationsRoutes.js';
 
 dotenv.config();
 
@@ -118,6 +121,9 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 
 // Student test routes
+// Identify the logged-in student on every student route
+app.use('/api/student', optionalAuth);
+
 app.use('/api/student/tests', studentTestRoutes);
 
 // Student assigned tests routes
@@ -126,11 +132,17 @@ app.use('/api/student/assigned-tests', assignedTestsRoutes);
 // Student results routes
 app.use('/api/student/results', resultsRoutes);
 
+// Student notifications
+app.use('/api/student/notifications', studentNotificationsRoutes);
+
 // Faculty dashboard routes
 app.use('/api/faculty', facultyRoutes);
 
 // Faculty test management routes
 app.use('/api/faculty', facultyTestRoutes);
+
+// Faculty school monitoring (students + test reports of the faculty's school)
+app.use('/api/faculty', facultySchoolRoutes);
 
 // Database connection test endpoint
 app.get('/api/db-status', async (req, res) => {
