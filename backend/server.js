@@ -24,6 +24,8 @@ import studentTestRoutes from './routes/student/studentTestRoutes.js';
 import facultyRoutes from './routes/faculty/facultyDashboardRoutes.js';
 import facultyTestRoutes from './routes/faculty/facultyTestRoutes.js';
 import facultySchoolRoutes from './routes/faculty/facultySchoolRoutes.js';
+import facultyMessagesRoutes from './routes/faculty/facultyMessagesRoutes.js';
+import adminReportsMessagesRoutes from './routes/admin/reportsMessagesRoutes.js';
 import assignedTestsRoutes from './routes/student/assignedTestsRoutes.js';
 import resultsRoutes from './routes/student/resultsRoutes.js';
 import { optionalAuth } from './middleware/auth.js';
@@ -143,6 +145,12 @@ app.use('/api/faculty', facultyTestRoutes);
 
 // Faculty school monitoring (students + test reports of the faculty's school)
 app.use('/api/faculty', facultySchoolRoutes);
+
+// Faculty <-> admin messages, and faculty resetting student PINs
+app.use('/api/faculty', facultyMessagesRoutes);
+
+// Admin reports (school / test / class) and messages to school faculty
+app.use('/api/admin', adminReportsMessagesRoutes);
 
 // Database connection test endpoint
 app.get('/api/db-status', async (req, res) => {

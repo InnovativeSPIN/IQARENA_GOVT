@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import bcrypt from 'bcryptjs';
 import { ensureTestStandardColumn } from '../../lib/testNotifications.js';
 
 /*
@@ -374,4 +375,24 @@ export const getSchoolNotifications = (req, res) => withSchool(req, res, async (
     school,
     notifications: rows.map(r => ({ ...r, recipients: Number(r.recipients), readCount: Number(r.readCount || 0) })),
   });
+});
+
+// POST /api/faculty/school/students/:id/reset-password  { password: '123456' }
+// Only for students of the faculty's own school who already have a login account
+export const resetSchoolStudentPassword = (req, res) => withSchool(req, res, async (connection, school) => {
+  const password = String(req.body?.password || '');
+  if (!/^\d{6}$/.test(password)) {
+    return res.status(400).json({ success: false, message: 'The new PIN must be exactly 6 digits' });
+  }
+  const [[student]] = await connection.query(
+    'SELECT id, student_name AS name, user_id AS userId FROM school_students WHERE id = ? AND school_id = ?',
+    [req.params.id, school.schoolId]
+  );
+  if (!student) return res.status(404).json({ success: false, message: 'Student not found in your school' });
+  if (!student.userId) {
+    return res.status(400).json({ success: false, message: 'This student has no login account yet. Ask the admin to create one first.' });
+  }
+  const hash = await bcrypt.hash(password, 10);
+  await connection.query('UPDATE users SET password = ? WHERE id = ?', [hash, student.userId]);
+  res.json({ success: true, message: `PIN reset for ${student.name}` });
 });
