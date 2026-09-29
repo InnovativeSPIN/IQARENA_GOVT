@@ -339,57 +339,6 @@ export default function AssignedTests() {
 
             {!loading && filteredTests.length > 0 && (
               <div>
-                {recentTests.length > 0 && (
-                  <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {recentTests.map(rt => (
-                      <Card key={rt.id} className="border-0 shadow-sm">
-                        <CardContent>
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-sm truncate sm:text-base">{rt.title}</h4>
-                              <p className="text-xs text-muted-foreground mt-1">Created: {rt.createdAt ? new Date(rt.createdAt).toLocaleString() : '-'}</p>
-                              {rt.rawStatus === 'published' && (() => {
-                                const now = new Date();
-                                const start = rt.startTime ? new Date(rt.startTime) : null;
-                                const end = rt.endTime ? new Date(rt.endTime) : null;
-                                const inWindow = (!start || now >= start) && (!end || now <= end);
-                                if (!inWindow) {
-                                  if (start && now < start) return <p className="text-xs text-muted-foreground mt-1">Available from {formatSimpleDate(start)}</p>;
-                                  if (end && now > end) return <p className="text-xs text-muted-foreground mt-1">Available until {formatSimpleDate(end)}</p>;
-                                }
-                                return null;
-                              })()}
-                            </div>
-                            <div className="shrink-0 w-full sm:w-auto">
-                              {rt.status === 'submitted' ? (
-                                <Link to={`/student/results/${rt.id}`} className="w-full sm:w-auto">
-                                  <Button variant="outline" size="sm" className="w-full border-orange-500 text-orange-600 hover:bg-orange-50 hover:border-orange-600">View</Button>
-                                </Link>
-                              ) : (rt.rawStatus === 'published') ? (
-                                (() => {
-                                  const now = new Date();
-                                  const start = rt.startTime ? new Date(rt.startTime) : null;
-                                  const end = rt.endTime ? new Date(rt.endTime) : null;
-                                  const inWindow = (!start || now >= start) && (!end || now <= end);
-                                  return inWindow ? (
-                                    <Link to={`/student/exam/${rt.id}`} className="w-full sm:w-auto">
-                                      <Button size="sm" className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md">Attend</Button>
-                                    </Link>
-                                  ) : (
-                                    <Button size="sm" disabled className="w-full">Not Available</Button>
-                                  );
-                                })()
-                              ) : (
-                                <Button size="sm" disabled className="w-full">Not Available</Button>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
                 {displayTests.map((test) => (
                   <Card key={test.id} className="border-0 shadow-sm overflow-hidden bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-150 transition-all duration-300">
                     <CardContent className="p-0">
