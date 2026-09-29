@@ -88,22 +88,8 @@ export default function ExamInterface() {
       try {
         setLoading(true);
         
-        // Fetch test data
-        const data = await apiFetch<TestData>(`/student/tests/${testId}`);
-        
-        // Transform questions to ensure string IDs
-        const transformedData = {
-          ...data,
-          questions: data.questions.map(q => ({
-            ...q,
-            id: `q${q.id}`, // Convert numeric ID to string format
-          }))
-        };
-        
-        setTestData(transformedData);
-        setTimeLeft(data.test.duration * 60); // Convert minutes to seconds
-        
-        // Start or resume attempt
+        // Start or resume the attempt first: randomized (multi-topic) tests pick each
+        // student's questions when the attempt starts, so they must exist before loading
         const attemptResponse = await apiFetch<{ 
           attemptId?: number; 
           message: string; 
@@ -121,10 +107,29 @@ export default function ExamInterface() {
           navigate('/student');
           return;
         }
+
+        // Fetch test data (questions in this attempt's order)
+        const data = await apiFetch<TestData>(`/student/tests/${testId}`);
+
+        if (!data.questions || data.questions.length === 0) {
+          throw new Error('This test has no questions yet. Please contact your teacher.');
+        }
+        
+        // Transform questions to ensure string IDs
+        const transformedData = {
+          ...data,
+          questions: data.questions.map(q => ({
+            ...q,
+            id: `q${q.id}`, // Convert numeric ID to string format
+          }))
+        };
+        
+        setTestData(transformedData);
+        setTimeLeft(data.test.duration * 60); // Convert minutes to seconds
         
         setAttemptId(attemptResponse.attemptId || null);
         
-        if (attemptResponse.message.includes('resumed')) {
+        if (/resumed|continuing/i.test(attemptResponse.message)) {
           toast({
             title: "Exam Resumed",
             description: "Continuing from where you left off.",
@@ -650,9 +655,16 @@ export default function ExamInterface() {
                 </div>
                 <Separator className="my-3" />
                 <div className="space-y-3">
-                  <p className="text-base lg:text-lg leading-relaxed text-gray-800">
-                    {currentQuestion.questionText}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-base lg:text-lg leading-relaxed text-gray-800">
+                      {currentQuestion.questionText}
+                    </p>
+                    {currentQuestion.questionTextTa && (
+                      <p className="text-sm lg:text-base leading-relaxed text-gray-500 border-t border-gray-200/50 pt-1 mt-1">
+                        {currentQuestion.questionTextTa}
+                      </p>
+                    )}
+                  </div>
                   {currentQuestion.questionImage && (
                     <img
                       src={getImageUrl(currentQuestion.questionImage)}
@@ -691,12 +703,22 @@ export default function ExamInterface() {
                       {option}
                     </div>
                     <div className="flex-1">
-                      <span className={cn(
-                        "text-base lg:text-lg block",
-                        isSelected ? "text-gray-900 font-medium" : "text-gray-700"
-                      )}>
-                        {optionText}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={cn(
+                          "text-base lg:text-lg block",
+                          isSelected ? "text-gray-900 font-medium" : "text-gray-700"
+                        )}>
+                          {optionText}
+                        </span>
+                        {currentQuestion[`option${option}Ta` as keyof TestQuestion] && (
+                          <span className={cn(
+                            "text-sm block pt-1 border-t",
+                            isSelected ? "text-gray-600 border-orange-200" : "text-gray-500 border-gray-100 group-hover:border-orange-100"
+                          )}>
+                            {currentQuestion[`option${option}Ta` as keyof TestQuestion] as string}
+                          </span>
+                        )}
+                      </div>
                       {optionImage && (
                         <img
                           src={getImageUrl(optionImage)}

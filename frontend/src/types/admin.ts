@@ -44,10 +44,15 @@ export interface Topic {
 export interface Question {
   id: string;
   text: string;
+  textTa?: string;
   optionA: string;
+  optionATa?: string;
   optionB: string;
+  optionBTa?: string;
   optionC: string;
+  optionCTa?: string;
   optionD: string;
+  optionDTa?: string;
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation: string;
   explanationImage?: string | null;

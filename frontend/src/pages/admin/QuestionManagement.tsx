@@ -273,6 +273,27 @@ export default function QuestionManagement() {
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [applyTopicToAll, setApplyTopicToAll] = useState(false);
   const [bulkUploading, setBulkUploading] = useState(false);
+  // Bulk preview state
+  type BulkRow = {
+    _rowIndex: number;
+    topic: string;
+    topicId: number | null;
+    topicMatch: 'matched' | 'unmatched' | 'skipped';
+    questionEN: string;
+    questionTA: string;
+    optionAEN: string; optionATA: string;
+    optionBEN: string; optionBTA: string;
+    optionCEN: string; optionCTA: string;
+    optionDEN: string; optionDTA: string;
+    answer: string;
+    explanation: string;
+    marks: number;
+  };
+  const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkRow[]>([]);
+  const [bulkPreviewStep, setBulkPreviewStep] = useState<'select' | 'preview'>('select');
+  const [bulkEditingIdx, setBulkEditingIdx] = useState<number | null>(null);
+  const [bulkAllTopics, setBulkAllTopics] = useState<Array<{ id: number; name: string }>>([]);
+  const [bulkParseError, setBulkParseError] = useState<string>('');
 
   // Fetch exams on mount
   useEffect(() => {
@@ -425,6 +446,17 @@ export default function QuestionManagement() {
     fetchDialogTopics();
   }, [dialogSubject]);
 
+  // Re-render math equations whenever questions change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).MathJax && (window as any).MathJax.typesetPromise) {
+      // Small timeout to allow DOM to update
+      const timer = setTimeout(() => {
+        (window as any).MathJax.typesetPromise().catch((err: any) => console.warn('MathJax typeset failed:', err));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [questions, bulkPreviewRows]);
+
   // Fetch subtopics for selected topic in dialog
   useEffect(() => {
     if (!dialogTopic) {
@@ -471,74 +503,146 @@ export default function QuestionManagement() {
   }, [dialogTopic]);
 
   // Download template helpers
-  const handleDownloadCsvTemplate = () => {
-    const csv = 'examId,subjectId,topicId,subtopicId,questionText,questionImage,optionA,optionAImage,optionB,optionBImage,optionC,optionCImage,optionD,optionDImage,correctAnswer,explanation,explanationImage,marks\n1,2,3,10,"What is 2+2?",,,"3",,"4",,"5",,"6",,"B","Basic addition",,4';
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'bulk_template.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadXlsxTemplate = async () => {
+    const XLSX = (await import('xlsx'));
+    const templateData = [
+      {
+        'Q.No': 1,
+        'Topic': 'General Knowledge',
+        'Question (EN)': 'What is 2+2?',
+        'Question (TA)': '2+2 என்பது என்ன?',
+        'Option A (EN)': '3',
+        'Option A (TA)': '3',
+        'Option B (EN)': '4',
+        'Option B (TA)': '4',
+        'Option C (EN)': '5',
+        'Option C (TA)': '5',
+        'Option D (EN)': '6',
+        'Option D (TA)': '6',
+        'Answer': 'B',
+        'Explanation': 'Basic addition',
+        'Marks': 4,
+      }
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 6 }, { wch: 20 }, { wch: 40 }, { wch: 40 },
+      { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+      { wch: 8 }, { wch: 30 }, { wch: 6 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Questions');
+    XLSX.writeFile(workbook, 'question_upload_template.xlsx');
   };
 
-  const handleDownloadJsonTemplate = () => {
-    const json = [{ examId:1, subjectId:2, topicId:3, subtopicId:10, questionText:'What is 2+2?', questionImage:null, optionA:'3', optionAImage:null, optionB:'4', optionBImage:null, optionC:'5', optionCImage:null, optionD:'6', optionDImage:null, correctAnswer:'B', explanation:'Basic addition', explanationImage:null, marks:4 }];
-    const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'bulk_template.json';
-    a.click();
-    URL.revokeObjectURL(url);
+  // Parse XLSX file client-side → build preview rows with topic mapping
+  const handleParseXlsx = async (file: File) => {
+    setBulkParseError('');
+    setBulkPreviewRows([]);
+    try {
+      // Fetch all topics for matching
+      let allTopics: Array<{ id: number; name: string }> = bulkAllTopics;
+      if (allTopics.length === 0) {
+        const tRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/topics`);
+        const tData = await tRes.json();
+        if (tData.success && Array.isArray(tData.topics)) {
+          allTopics = tData.topics.map((t: any) => ({ id: t.id, name: t.topic_name || t.name || '' }));
+          setBulkAllTopics(allTopics);
+        }
+      }
+
+      const XLSX = await import('xlsx');
+      const buf = await file.arrayBuffer();
+      const workbook = XLSX.read(buf, { type: 'array' });
+      const ws = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (rawRows.length === 0) {
+        setBulkParseError('The file has no data rows.');
+        return;
+      }
+
+      const rows = rawRows.map((r, i) => {
+        const topicName = String(r['Topic'] || r['topic'] || '').trim();
+        const matched = allTopics.find(t => t.name.toLowerCase() === topicName.toLowerCase());
+        return {
+          _rowIndex: i,
+          topic: topicName,
+          topicId: matched ? matched.id : null,
+          topicMatch: matched ? ('matched' as const) : (topicName ? 'unmatched' as const : 'skipped' as const),
+          questionEN: String(r['Question (EN)'] || r['question'] || '').trim(),
+          questionTA: String(r['Question (TA)'] || '').trim(),
+          optionAEN: String(r['Option A (EN)'] || r['option_a'] || '').trim(),
+          optionATA: String(r['Option A (TA)'] || '').trim(),
+          optionBEN: String(r['Option B (EN)'] || r['option_b'] || '').trim(),
+          optionBTA: String(r['Option B (TA)'] || '').trim(),
+          optionCEN: String(r['Option C (EN)'] || r['option_c'] || '').trim(),
+          optionCTA: String(r['Option C (TA)'] || '').trim(),
+          optionDEN: String(r['Option D (EN)'] || r['option_d'] || '').trim(),
+          optionDTA: String(r['Option D (TA)'] || '').trim(),
+          answer: String(r['Answer'] || r['answer'] || '').trim().toUpperCase(),
+          explanation: String(r['Explanation'] || r['explanation'] || '').trim(),
+          marks: Number(r['Marks'] || r['marks'] || 4),
+        };
+      });
+
+      setBulkPreviewRows(rows);
+      setBulkPreviewStep('preview');
+    } catch (err: any) {
+      setBulkParseError('Failed to parse file: ' + (err?.message || String(err)));
+    }
   };
 
-  // Bulk upload handler
-  const handleBulkUpload = async () => {
-    if (!bulkFile) {
-      alert('Please choose a CSV or JSON file to upload');
+  // Confirmed upload — send parsed (and possibly edited) rows as JSON payload
+  const handleBulkUploadConfirmed = async () => {
+    const validRows = bulkPreviewRows.filter(r => r.topicMatch === 'matched' && (r.questionEN || r.questionTA));
+    if (validRows.length === 0) {
+      alert('No valid rows to upload. Ensure all topics are matched and questions are not empty.');
       return;
     }
-
-    const form = new FormData();
-    form.append('file', bulkFile);
-    if (applyTopicToAll && dialogTopic) {
-      form.append('topicId', String(dialogTopic));
-    }
-    if (applyTopicToAll && dialogSubtopic) {
-      form.append('subtopicId', String(dialogSubtopic));
-    }
-    if (dialogExam) form.append('examId', String(dialogExam));
-    if (dialogSubject) form.append('subjectId', String(dialogSubject));
-
+    const payload = validRows.map(r => ({
+      'Topic': r.topic,
+      'Question (EN)': r.questionEN,
+      'Question (TA)': r.questionTA,
+      'Option A (EN)': r.optionAEN, 'Option A (TA)': r.optionATA,
+      'Option B (EN)': r.optionBEN, 'Option B (TA)': r.optionBTA,
+      'Option C (EN)': r.optionCEN, 'Option C (TA)': r.optionCTA,
+      'Option D (EN)': r.optionDEN, 'Option D (TA)': r.optionDTA,
+      'Answer': r.answer, 'Explanation': r.explanation, 'Marks': r.marks,
+    }));
     try {
       setBulkUploading(true);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions/bulk-upload`, {
         method: 'POST',
-        body: form
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: payload, subjectId: dialogSubject, examId: dialogExam }),
       });
       const data = await res.json();
       if (data.success) {
-        alert(data.message || 'Bulk upload successful');
+        alert(`✅ ${data.message || `Uploaded ${validRows.length} questions successfully!`}`);
         setIsBulkUploadOpen(false);
         setBulkFile(null);
-        // Optionally refresh questions
-        const fetchUrl = selectedTopic 
+        setBulkPreviewRows([]);
+        setBulkPreviewStep('select');
+        // Refresh questions list
+        const fetchUrl = selectedTopic
           ? `${import.meta.env.VITE_API_URL}/admin/questions?topicId=${selectedTopic}`
           : selectedSubject
           ? `${import.meta.env.VITE_API_URL}/admin/questions?subjectId=${selectedSubject}`
           : selectedExam
           ? `${import.meta.env.VITE_API_URL}/admin/questions?examId=${selectedExam}`
           : `${import.meta.env.VITE_API_URL}/admin/questions`;
-        const refreshRes = await fetch(fetchUrl);
-        const refreshData = await refreshRes.json();
-        if (refreshData.success) setQuestions(refreshData.questions);
+        const rRes = await fetch(fetchUrl);
+        const rData = await rRes.json();
+        if (rData.success) setQuestions(rData.questions);
       } else {
-        alert(data.message || 'Bulk upload failed');
+        alert('Upload failed: ' + (data.message || 'Unknown error'));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Bulk upload error', err);
-      alert('Bulk upload failed');
+      alert('Bulk upload failed: ' + (err?.message || String(err)));
     } finally {
       setBulkUploading(false);
     }
@@ -996,36 +1100,38 @@ export default function QuestionManagement() {
   const renderOptionContent = (question: Partial<Question> | Record<string, string | number | null | undefined>, opt: 'A' | 'B' | 'C' | 'D', includeLocalPreview = false) => {
     const imgKey = `option${opt}Image`;
     const textKey = `option${opt}`;
+    const textTaKey = `option${opt}Ta`;
     const localKey = `option${opt}Image` as keyof typeof localPreviews;
     const record = question as Record<string, string | number | null | undefined>;
     
     const imageValue = record[imgKey];
     const textValue = record[textKey];
+    const textTaValue = record[textTaKey];
     const image = imageValue ? String(imageValue) : '';
     const text = textValue ? String(textValue) : '';
+    const textTa = textTaValue ? String(textTaValue) : '';
     const localImg = includeLocalPreview ? (localPreviews[localKey] || '') : '';
     
-    // Show both image and text if both are available
     const hasImage = image && image.trim() !== '';
     const hasText = text && text.trim() !== '';
+    const hasTextTa = textTa && textTa.trim() !== '' && textTa.trim() !== text.trim();
     
-    if (hasImage && hasText) {
-      // Show both image and text
-      return (
-        <div className="space-y-2">
-          <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />
-          <div><span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} /></div>
-        </div>
-      );
-    } else if (hasImage) {
-      // Show only image
-      return <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />;
-    } else if (hasText) {
-      // Show only text
-      return <span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} />;
-    }
-    
-    return <span className="text-gray-400">No content</span>;
+    return (
+      <div className="space-y-2">
+        {hasImage && <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />}
+        {hasText && (
+          <div className="font-medium text-foreground">
+            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} />
+          </div>
+        )}
+        {hasTextTa && (
+          <div className="text-muted-foreground mt-1 text-sm border-t border-border/50 pt-1">
+            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(textTa) }} />
+          </div>
+        )}
+        {(!hasImage && !hasText && !hasTextTa) && <span className="text-muted-foreground italic text-sm">No content</span>}
+      </div>
+    );
   };
 
   const previewQuestion: Partial<Question> & Record<string, string | number | undefined> = { ...(selectedQuestion || {}), ...formData, ...formImages, ...localPreviews };
@@ -1910,10 +2016,15 @@ export default function QuestionManagement() {
                     </div>
                     
                     {/* Question Text - Always Visible */}
-                    <p className="text-foreground font-medium mb-3">
+                    <div className="text-foreground font-medium mb-3">
                       <span className="inline-block sm:inline mr-2 font-semibold">Q{index + 1}.</span>
-                      <span className="block sm:inline break-all md:break-words leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: renderMathSafe(question.text) }} />
-                    </p>
+                      <div className="flex flex-col gap-1">
+                        <span className="block break-all md:break-words leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: renderMathSafe(question.text) }} />
+                        {question.textTa && question.textTa.trim() !== question.text.trim() && (
+                          <span className="block break-all md:break-words leading-relaxed text-sm text-muted-foreground border-t border-border/30 pt-1 mt-1" dangerouslySetInnerHTML={{ __html: renderMathSafe(question.textTa) }} />
+                        )}
+                      </div>
+                    </div>
 
                     {/* Correct Answer Preview - Always Visible */}
                     <div className="mb-3">
@@ -2147,6 +2258,11 @@ export default function QuestionManagement() {
                       <p className="text-lg font-semibold text-foreground leading-relaxed">
                         <span dangerouslySetInnerHTML={{ __html: renderMathSafe(selectedQuestion.text) }} />
                       </p>
+                      {selectedQuestion.textTa && (
+                        <p className="text-md font-medium text-muted-foreground leading-relaxed mt-2 pt-2 border-t border-border/50">
+                          <span dangerouslySetInnerHTML={{ __html: renderMathSafe(selectedQuestion.textTa) }} />
+                        </p>
+                      )}
                     </div>
                   </div>
                   {selectedQuestion.questionImage && (
@@ -2606,7 +2722,16 @@ export default function QuestionManagement() {
                     Q
                   </div>
                   <div className="flex-1">
-                    <p className="text-lg font-medium mb-4"><span dangerouslySetInnerHTML={{ __html: renderMathSafe(previewQuestion.text) }} /></p>
+                    <div className="mb-4">
+                      <p className="text-lg font-medium">
+                        <span dangerouslySetInnerHTML={{ __html: renderMathSafe(previewQuestion.text) }} />
+                      </p>
+                      {previewQuestion.textTa && (
+                        <p className="text-md font-medium text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                          <span dangerouslySetInnerHTML={{ __html: renderMathSafe(previewQuestion.textTa) }} />
+                        </p>
+                      )}
+                    </div>
                     {(previewQuestion.questionImage || localPreviews.questionImage) && (
                       <div className="mb-4">
                         <ImageWithFallback
@@ -2682,12 +2807,15 @@ export default function QuestionManagement() {
         </Dialog>
                           
        {/* Bulk Upload Dialog */}
-<Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+<Dialog open={isBulkUploadOpen} onOpenChange={(open) => { setIsBulkUploadOpen(open); if (!open) { setBulkPreviewStep('select'); setBulkPreviewRows([]); setBulkFile(null); setBulkParseError(''); setBulkEditingIdx(null); } }}>
   <DialogContent
     className="
       w-[95vw] 
-      max-w-5xl 
-      max-h-[90vh] 
+      max-w-[95vw] 
+      sm:max-w-[95vw]
+      md:max-w-[95vw]
+      lg:max-w-[95vw]
+      max-h-[95vh] 
       overflow-y-auto 
       p-4 sm:p-6
     "
@@ -2800,94 +2928,208 @@ export default function QuestionManagement() {
         </div>
       </div>
 
-      {/* ===== File Upload ===== */}
-      <div
-        className={`
-          border-2 border-dashed rounded-lg p-3 
-          flex flex-col sm:flex-row 
-          items-start sm:items-center 
-          justify-between gap-3
-          transition-colors
-          ${bulkFile ? 'border-green-300 bg-green-50/20' : 'bg-card'}
-          w-full lg:max-w-[900px]
-        `}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'copy';
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          const f = e.dataTransfer.files?.[0];
-          if (f) setBulkFile(f);
-        }}
-      >
-        <label className="flex-1 min-w-0 cursor-pointer">
-          <input
-            type="file"
-            className="hidden"
-            accept=".csv,application/json,text/csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setBulkFile(f);
-            }}
-          />
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium text-sm">Choose file</span>
-            <span className="text-sm text-muted-foreground truncate flex-1 overflow-hidden">
-              {bulkFile ? bulkFile.name : 'No file chosen'}
-            </span>
-            <span className="hidden sm:inline-block text-xs text-muted-foreground ml-3">Tap to choose or drag & drop</span>
-          </div>
-        </label>
-
-        {bulkFile && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setBulkFile(null)}
-            className="self-end sm:self-auto"
+      {bulkPreviewStep === 'select' ? (
+        /* ===== STEP 1: File select ===== */
+        <>
+          {/* File drop zone */}
+          <div
+            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${bulkFile ? 'border-green-400 bg-green-50/30 dark:bg-green-950/20' : 'border-muted-foreground/30 hover:border-primary/50 bg-muted/10'}`}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+            onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setBulkFile(f); }}
+            onClick={() => (document.getElementById('bulk-file-input') as HTMLInputElement)?.click()}
           >
-            Remove
-          </Button>
-        )}
-      </div>
+            <input
+              id="bulk-file-input"
+              type="file"
+              className="hidden"
+              accept=".xlsx,.xls,application/json,text/csv,.csv"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) setBulkFile(f); }}
+            />
+            <FileText className={`w-10 h-10 ${bulkFile ? 'text-green-500' : 'text-muted-foreground'}`} />
+            <div className="text-center">
+              <p className="font-semibold text-sm">{bulkFile ? bulkFile.name : 'Drop your Excel file here'}</p>
+              <p className="text-xs text-muted-foreground mt-1">{bulkFile ? `${(bulkFile.size / 1024).toFixed(1)} KB` : 'or click to browse — .xlsx, .xls, .json, .csv'}</p>
+            </div>
+            {bulkFile && <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={(e) => { e.stopPropagation(); setBulkFile(null); setBulkParseError(''); }}>Remove</Button>}
+          </div>
 
-     
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={applyTopicToAll}
-          onChange={(e) => setApplyTopicToAll(e.target.checked)}
-          className="mt-1"
-        />
-        Apply selected Topic/Subtopic to all rows
-      </label>
+          {bulkParseError && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-2">{bulkParseError}</div>
+          )}
 
-    
-      <div className="border rounded-lg p-4">
-        <p className="font-semibold mb-2">📋 CSV Format</p>
-       
-        <div className="mt-4 flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" size="sm" onClick={handleDownloadCsvTemplate}>
-            Download CSV Template
-          </Button>
-        
-        </div>
-      </div>
+          {/* Format info + template download */}
+          <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-4">
+            <p className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">📊 Required Excel Columns</p>
+            <div className="font-mono text-xs bg-white dark:bg-gray-900 border rounded p-2 overflow-x-auto mb-3 text-gray-600 dark:text-gray-300">
+              Q.No · Topic · Question (EN) · Question (TA) · Option A (EN) · Option A (TA) · Option B (EN) · Option B (TA) · Option C (EN) · Option C (TA) · Option D (EN) · Option D (TA) · Answer · Explanation
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">Topics in your file are matched by name against the topics already in the database. Unmatched rows are highlighted so you can fix them before uploading.</p>
+            <Button variant="outline" size="sm" className="bg-green-600 hover:bg-green-700 text-white border-green-600" onClick={handleDownloadXlsxTemplate}>
+              📥 Download Excel Template (.xlsx)
+            </Button>
+          </div>
 
-     
-      <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
-        <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>
-          Cancel
-        </Button>
-        <Button
-          disabled={!bulkFile || bulkUploading}
-          onClick={handleBulkUpload}
-        >
-          <FileText className="w-4 h-4 mr-2" />
-          {bulkUploading ? 'Uploading...' : 'Upload Questions'}
-        </Button>
-      </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => { setIsBulkUploadOpen(false); setBulkFile(null); setBulkParseError(''); }}>Cancel</Button>
+            <Button disabled={!bulkFile} onClick={() => bulkFile && handleParseXlsx(bulkFile)}>
+              <Eye className="w-4 h-4 mr-2" /> Preview Questions →
+            </Button>
+          </div>
+        </>
+      ) : (
+        /* ===== STEP 2: Preview + Edit ===== */
+        <>
+          {/* Summary bar */}
+          {(() => {
+            const matched = bulkPreviewRows.filter(r => r.topicMatch === 'matched').length;
+            const unmatched = bulkPreviewRows.filter(r => r.topicMatch === 'unmatched').length;
+            const skipped = bulkPreviewRows.filter(r => r.topicMatch === 'skipped').length;
+            return (
+              <div className="flex flex-wrap gap-3 text-sm">
+                <span className="rounded-full bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 px-3 py-1 font-medium">✅ {matched} matched</span>
+                {unmatched > 0 && <span className="rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-3 py-1 font-medium">❌ {unmatched} unmatched topics</span>}
+                {skipped > 0 && <span className="rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-200 px-3 py-1 font-medium">⚠️ {skipped} skipped (no topic)</span>}
+                <span className="text-muted-foreground ml-auto text-xs self-center">Only matched rows will be uploaded</span>
+              </div>
+            );
+          })()}
+
+          {/* Preview table */}
+          <div className="border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-muted z-10">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-8">#</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[120px]">Topic</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[220px]">Question</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">A</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">B</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">C</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground">D</th>
+                    <th className="px-3 py-2 text-center font-semibold text-muted-foreground">Ans</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[150px]">Hint / Expl</th>
+                    <th className="px-3 py-2 text-center font-semibold text-muted-foreground">Marks</th>
+                    <th className="px-3 py-2 text-center font-semibold text-muted-foreground">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {bulkPreviewRows.map((row, idx) => {
+                    const isEditing = bulkEditingIdx === idx;
+                    const rowBg = row.topicMatch === 'matched' ? '' : row.topicMatch === 'unmatched' ? 'bg-red-50/60 dark:bg-red-950/20' : 'bg-yellow-50/60 dark:bg-yellow-950/20';
+                    return (
+                      <tr key={idx} className={`${rowBg} hover:bg-muted/20 transition-colors`}>
+                        <td className="px-3 py-2 text-muted-foreground">{row._rowIndex + 1}</td>
+                        <td className="px-3 py-2">
+                          {isEditing ? (
+                            <select
+                              className="border rounded px-1 py-0.5 text-xs w-full bg-background"
+                              value={row.topicId ?? ''}
+                              onChange={(e) => {
+                                const tid = Number(e.target.value);
+                                const found = bulkAllTopics.find(t => t.id === tid);
+                                setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, topicId: tid, topic: found?.name || r.topic, topicMatch: found ? 'matched' : 'unmatched' } : r));
+                              }}
+                            >
+                              <option value="">-- select topic --</option>
+                              {bulkAllTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium truncate max-w-[110px]" title={row.topic}>{row.topic || '—'}</span>
+                              <span className={`text-[10px] font-medium ${row.topicMatch === 'matched' ? 'text-green-600' : row.topicMatch === 'unmatched' ? 'text-red-500' : 'text-yellow-600'}`}>
+                                {row.topicMatch === 'matched' ? '✓ matched' : row.topicMatch === 'unmatched' ? '✗ not found' : '⚠ empty'}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 min-w-[220px]">
+                          {isEditing ? (
+                            <div className="space-y-1">
+                              <textarea className="border rounded px-1 py-0.5 text-xs w-full bg-background resize-none" rows={2} value={row.questionEN} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, questionEN: e.target.value } : r))} placeholder="English" />
+                              <textarea className="border rounded px-1 py-0.5 text-xs w-full bg-background resize-none" rows={2} value={row.questionTA} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, questionTA: e.target.value } : r))} placeholder="Tamil" style={{ fontFamily: 'inherit' }} />
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="line-clamp-2 text-foreground" title={row.questionEN}>{row.questionEN}</p>
+                              {row.questionTA && <p className="line-clamp-1 text-muted-foreground text-[10px] mt-0.5" title={row.questionTA}>{row.questionTA}</p>}
+                            </div>
+                          )}
+                        </td>
+                        {(['A', 'B', 'C', 'D'] as const).map(opt => {
+                          const enKey = `option${opt}EN` as keyof typeof row;
+                          const taKey = `option${opt}TA` as keyof typeof row;
+                          return (
+                            <td key={opt} className="px-3 py-2 min-w-[100px]">
+                              {isEditing ? (
+                                <div className="space-y-1">
+                                  <input className="border rounded px-1 py-0.5 text-xs w-full bg-background" value={row[enKey] as string} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, [enKey]: e.target.value } : r))} placeholder="EN" />
+                                  <input className="border rounded px-1 py-0.5 text-xs w-full bg-background" value={row[taKey] as string} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, [taKey]: e.target.value } : r))} placeholder="TA" style={{ fontFamily: 'inherit' }} />
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className={`font-medium ${row.answer === opt ? 'text-green-600' : ''}`} title={row[enKey] as string}>{String(row[enKey] || '—').slice(0, 30)}{String(row[enKey] || '').length > 30 ? '…' : ''}</span>
+                                  {row[taKey] && <p className="text-muted-foreground text-[10px]">{String(row[taKey]).slice(0, 20)}…</p>}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-center">
+                          {isEditing ? (
+                            <select className="border rounded px-1 py-0.5 text-xs bg-background" value={row.answer} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, answer: e.target.value } : r))}>
+                              {['A','B','C','D'].map(v => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          ) : (
+                            <span className="font-bold text-green-600">{row.answer}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {isEditing ? (
+                            <textarea className="border rounded px-1 py-0.5 text-xs w-full bg-background resize-none" rows={2} value={row.explanation} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, explanation: e.target.value } : r))} placeholder="Hint / Explanation" />
+                          ) : (
+                            <p className="line-clamp-2 text-muted-foreground text-[10px]" title={row.explanation}>{row.explanation || '—'}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {isEditing ? (
+                            <input type="number" className="border rounded px-1 py-0.5 text-xs w-12 bg-background text-center" value={row.marks} min={1} onChange={(e) => setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, marks: Number(e.target.value) } : r))} />
+                          ) : (
+                            <span>{row.marks}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {isEditing ? (
+                            <Button size="sm" variant="default" className="h-6 text-xs px-2" onClick={() => setBulkEditingIdx(null)}>Done</Button>
+                          ) : (
+                            <div className="flex gap-1 justify-center">
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Edit" onClick={() => setBulkEditingIdx(idx)}><Edit className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive" title="Remove row" onClick={() => setBulkPreviewRows(prev => prev.filter((_, i) => i !== idx))}><Trash2 className="w-3 h-3" /></Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-2">
+            <Button variant="outline" onClick={() => { setBulkPreviewStep('select'); setBulkPreviewRows([]); setBulkEditingIdx(null); }}>
+              ← Back
+            </Button>
+            <Button
+              disabled={bulkUploading || bulkPreviewRows.filter(r => r.topicMatch === 'matched').length === 0}
+              onClick={handleBulkUploadConfirmed}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {bulkUploading ? 'Uploading...' : `Upload ${bulkPreviewRows.filter(r => r.topicMatch === 'matched').length} Questions`}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   </DialogContent>
 </Dialog>

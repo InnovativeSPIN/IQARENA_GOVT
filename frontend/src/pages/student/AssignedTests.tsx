@@ -138,7 +138,8 @@ export default function AssignedTests() {
   const fetchAssignedTests = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/student/assigned-tests`);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/student/assigned-tests`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       
       if (response.data.success) {
         setTests(response.data.data.tests);

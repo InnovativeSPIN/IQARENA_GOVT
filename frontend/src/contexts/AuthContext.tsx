@@ -17,6 +17,7 @@ interface AuthContextType {
   role: string | null;
   loginWithToken: (token: string, userData: User) => void;
   logout: () => void;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,7 +37,15 @@ function decodeToken(token: string): User | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Restore the session synchronously so protected routes don't bounce to /login on a page refresh
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const token = localStorage.getItem('token');
+      return token ? decodeToken(token) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -78,6 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // Merge profile changes (e.g. edited name/phone) into the logged-in user
+  const updateUser = (patch: Partial<User>) => {
+    setUser(prev => (prev ? { ...prev, ...patch } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -86,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: user?.role || null,
         loginWithToken,
         logout,
+        updateUser,
       }}
     >
       {children}

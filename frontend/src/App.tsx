@@ -34,12 +34,11 @@ import StudentHelp from "./pages/student/StudentHelp";
 // Faculty Pages
 import FacultyLayout from "./components/layout/FacultyLayout";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
-import FacultySubjects from "./pages/faculty/FacultySubjects";
-import FacultyQuestions from "./pages/faculty/FacultyQuestions";
-import FacultyProposals from "./pages/faculty/FacultyProposals";
 import FacultyPerformance from "./pages/faculty/FacultyPerformance";
 import FacultyNotifications from "./pages/faculty/FacultyNotifications";
 import FacultyProfile from "./pages/faculty/FacultyProfile";
+import FacultyStudents from "./pages/faculty/FacultyStudents";
+import FacultyReports from "./pages/faculty/FacultyReports";
 
 const queryClient = new QueryClient();
 
@@ -117,11 +116,14 @@ function AppRoutes() {
 
       {/* Faculty Routes */}
       <Route path="/faculty" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyDashboard /></FacultyLayout></ProtectedRoute>} />
-      <Route path="/faculty/subjects" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultySubjects /></FacultyLayout></ProtectedRoute>} />
-      <Route path="/faculty/questions" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyQuestions /></FacultyLayout></ProtectedRoute>} />
-      <Route path="/faculty/tests" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyProposals /></FacultyLayout></ProtectedRoute>} />
+      <Route path="/faculty/subjects" element={<Navigate to="/faculty" replace />} />
+      <Route path="/faculty/questions" element={<Navigate to="/faculty" replace />} />
+      <Route path="/faculty/tests" element={<Navigate to="/faculty" replace />} />
       <Route path="/faculty/performance" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyPerformance /></FacultyLayout></ProtectedRoute>} />
       <Route path="/faculty/notifications" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyNotifications /></FacultyLayout></ProtectedRoute>} />
+      <Route path="/faculty/students" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyStudents /></FacultyLayout></ProtectedRoute>} />
+      <Route path="/faculty/reports" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyReports /></FacultyLayout></ProtectedRoute>} />
+      <Route path="/faculty/reports/:testId" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyReports /></FacultyLayout></ProtectedRoute>} />
       <Route path="/faculty/profile" element={<ProtectedRoute allowedRoles={['FACULTY']}><FacultyLayout><FacultyProfile /></FacultyLayout></ProtectedRoute>} />
 
       {/* Fallback 404 Route */}

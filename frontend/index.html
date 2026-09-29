@@ -11,9 +11,27 @@
     <meta property="og:title" content="IQARENA - Online Exam Management Platform" />
     <meta property="og:description" content="Complete exam management solution for NEET and JEE coaching institutes." />
     <meta property="og:type" content="website" />
-
+      <link rel="icon" href="/iqlogo.png" type="image/png">
+      <link rel="shortcut icon" href="/iqlogo.png" type="image/png">
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@IQARENA" />
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        },
+        options: {
+          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+        },
+        startup: {
+          pageReady: () => {
+            return MathJax.startup.defaultPageReady();
+          }
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   </head>
 
   <body>

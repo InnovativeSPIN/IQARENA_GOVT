@@ -1,5 +1,7 @@
 import { Bell, Search, Menu, Lock, Key } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -28,12 +30,21 @@ interface TopNavbarProps {
 }
 
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
-  const { admin, logout } = useAuth();
+  const { user: admin, logout } = useAuth();
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState(['', '', '', '', '', '']);
   const [newPassword, setNewPassword] = useState(['', '', '', '', '', '']);
   const [confirmPassword, setConfirmPassword] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const [notifLogs, setNotifLogs] = useState<Array<{ testId: number; title: string; recipients: number; readCount: number; schools: string | null; sentAt: string }>>([]);
+  useEffect(() => {
+    apiFetch<{ success: boolean; logs: typeof notifLogs }>('/admin/tests/notification-logs')
+      .then(res => { if (res?.success) setNotifLogs(res.logs); })
+      .catch(() => {});
+  }, []);
+  // Badge: alerts sent in the last 24 hours
+  const recentCount = notifLogs.filter(n => Date.now() - new Date(n.sentAt).getTime() < 24 * 60 * 60 * 1000).length;
 
   const currentPasswordRefs = useRef<(HTMLInputElement | null)[]>([]);
   const newPasswordRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -151,47 +162,13 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
 
         {/* Right Section */}
         <div className="flex items-center gap-2">
-          {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
-                  3
-                </Badge>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3">
-                <p className="text-sm font-medium">New student registered</p>
-                <p className="text-xs text-muted-foreground">
-                  John Doe joined NEET Batch 2024
-                </p>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3">
-                <p className="text-sm font-medium">Test completed</p>
-                <p className="text-xs text-muted-foreground">
-                  Physics Mock Test - 45 submissions
-                </p>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-3">
-                <p className="text-sm font-medium">Faculty added</p>
-                <p className="text-xs text-muted-foreground">
-                  Dr. Smith assigned to Chemistry
-                </p>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {/* Profile */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 pl-2">
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                   <span className="text-sm font-medium text-primary-foreground">
-                    {admin?.name.charAt(0) || 'A'}
+                    {admin?.name?.charAt(0) || 'A'}
                   </span>
                 </div>
                 <span className="hidden md:inline text-sm font-medium">
@@ -212,6 +189,40 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive">
                 Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Notifications: latest test alerts sent to students */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5" />
+                {recentCount > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 min-w-5 px-1 flex items-center justify-center text-[10px]">
+                    {recentCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {notifLogs.length === 0 ? (
+                <p className="px-2 py-4 text-sm text-muted-foreground text-center">No notifications yet</p>
+              ) : (
+                notifLogs.slice(0, 5).map(n => (
+                  <DropdownMenuItem key={n.testId} className="flex flex-col items-start gap-1 py-3" onClick={() => navigate('/admin/notifications')}>
+                    <p className="text-sm font-medium">{n.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sent to {n.recipients} students{n.schools ? ` • ${n.schools}` : ''} • {n.readCount} read
+                    </p>
+                  </DropdownMenuItem>
+                ))
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="justify-center text-primary" onClick={() => navigate('/admin/notifications')}>
+                View all
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

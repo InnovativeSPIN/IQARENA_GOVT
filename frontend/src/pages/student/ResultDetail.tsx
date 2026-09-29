@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { SubjectWiseResult, TestAttempt } from '@/types/student';
 
   type ServerQuestion = {
+    questionTextTa?: string | null;
     id: number | string;
     questionText: string;
     optionA?: string | null;
@@ -69,7 +70,7 @@ export default function ResultDetail() {
     markedForReview: number;
   } | null;
 
-  const [testResult, setTestResult] = useState<(TestAttempt & { rank?: number; totalParticipants?: number; percentile?: number; duration?: number; timeTaken?: number }) | null>(null);
+  const [testResult, setTestResult] = useState<(TestAttempt & { rank?: number; totalParticipants?: number; percentile?: number; duration?: number; timeTaken?: number; correctPercentage?: number }) | null>(null);
   const [questions, setQuestions] = useState<ServerQuestion[]>([]);
   const [stats, setStats] = useState<ResultStats>(null);
   const [subjectWise, setSubjectWise] = useState<Array<{subject: string, totalQuestions: number, attempted: number, correct: number, incorrect: number, unattempted: number}> | null>(null);
@@ -104,9 +105,9 @@ export default function ResultDetail() {
       setQuestions(report.questions);
       setSubjectWise(report.subjectWise || null);
       setLoading(false);
-      return;
     }
 
+    // Always load the saved result too: it has the rank and subject breakdown the submit response lacks
     if (testId) {
       fetchResultDetail();
     }
@@ -129,7 +130,7 @@ export default function ResultDetail() {
     const percentage = totalMarks > 0 ? parseFloat(((computedScore / totalMarks) * 100).toFixed(1)) : 0;
 
     const correctCount = questions.filter(q => q.isCorrect).length;
-    const correctPercentage = totalMarks > 0 && questions.length > 0 ? parseFloat(((correctCount / questions.length) * 100).toFixed(1)) : parseFloat(((correctCount / questions.length) * 100).toFixed(1)) || 0;
+    const correctPercentage = questions.length > 0 ? parseFloat(((correctCount / questions.length) * 100).toFixed(1)) : 0;
 
     // Avoid unnecessary setState if values are the same
     if (Math.abs((testResult.score || 0) - computedScore) < 0.0001 && testResult.percentage === percentage && testResult.correctPercentage === correctPercentage) return;
@@ -209,25 +210,46 @@ export default function ResultDetail() {
             </Badge>
           </div>
 
-          <div className="ml-auto">
-            <Button variant="ghost" size="sm" onClick={() => setShowRawData(s => !s)}>{showRawData ? 'Hide Raw' : 'Show Raw Data'}</Button>
-          </div>
         </div>
 
         {/* Score Summary */}
-        <Card className="border-0 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-br from-primary to-primary/80 p-4 sm:p-6 text-primary-foreground">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4">
-              <div className="text-center sm:text-left">
-                <p className="text-primary-foreground/80 text-xs sm:text-sm">Your Score</p>
-                <p className="text-3xl sm:text-4xl font-bold">{testResult.percentage}%</p>
-                <p className="text-primary-foreground/80 mt-1 text-sm">
-                  {testResult.score} / {testResult.totalMarks} marks
-                </p>                <p className="text-xs text-primary-foreground/80 mt-2">Correct: {stats.correct}/{stats.totalQuestions} ({typeof testResult.correctPercentage !== 'undefined' ? `${testResult.correctPercentage}%` : `${Math.round((stats.correct/stats.totalQuestions)*100)}%`})</p>              </div>
+        <Card className="border-0 shadow-sm overflow-hidden rounded-2xl">
+          <div className="relative bg-gradient-to-br from-primary to-primary/75 p-5 sm:p-6 text-primary-foreground">
+            <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10" />
+            <div className="relative grid grid-cols-1 sm:grid-cols-3 items-center gap-5">
+              {/* Score ring */}
+              <div className="flex justify-center sm:justify-start">
+                {(() => {
+                  const pct = Math.max(0, Math.min(100, Number(testResult.percentage) || 0));
+                  const r = 42, c = 2 * Math.PI * r;
+                  return (
+                    <div className="relative w-28 h-28">
+                      <svg viewBox="0 0 100 100" className="w-28 h-28 -rotate-90">
+                        <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="9" />
+                        <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="9" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c} />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-extrabold">{pct}%</span>
+                        <span className="text-[10px] uppercase tracking-wide text-primary-foreground/80">Score</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="text-center">
+                <p className="text-primary-foreground/80 text-xs uppercase tracking-wide">Marks</p>
+                <p className="text-3xl font-extrabold">{testResult.score} <span className="text-lg font-semibold text-primary-foreground/80">/ {testResult.totalMarks || 0}</span></p>
+                <p className="text-xs text-primary-foreground/85 mt-1">
+                  Correct {stats.correct} of {stats.totalQuestions} questions
+                  {stats.totalQuestions > 0 ? ` (${Math.round((stats.correct / stats.totalQuestions) * 100)}%)` : ''}
+                </p>
+              </div>
               <div className="text-center sm:text-right">
-                <p className="text-primary-foreground/80 text-xs sm:text-sm">Rank</p>
-                <p className="text-3xl sm:text-4xl font-bold">#{testResult.rank}{testResult.totalParticipants ? ` / ${testResult.totalParticipants}` : ''}</p>
-               
+                <p className="text-primary-foreground/80 text-xs uppercase tracking-wide">Rank</p>
+                <p className="text-3xl font-extrabold">
+                  {testResult.rank ? <>#{testResult.rank}<span className="text-lg font-semibold text-primary-foreground/80">{testResult.totalParticipants ? ` / ${testResult.totalParticipants}` : ''}</span></> : '—'}
+                </p>
+                {testResult.percentile != null && testResult.rank ? <p className="text-xs text-primary-foreground/85 mt-1">Better than {testResult.percentile}% of students</p> : null}
               </div>
             </div>
           </div>
@@ -398,7 +420,12 @@ export default function ResultDetail() {
                               className="max-w-full h-auto rounded"
                             />
                           ) : (
-                            <p className="text-sm text-foreground">{question.questionText}</p>
+                            <div className="space-y-1">
+                              <p className="text-sm text-foreground">{question.questionText}</p>
+                              {question.questionTextTa && (
+                                <p className="text-sm text-muted-foreground border-t border-border/50 pt-1 mt-1">{question.questionTextTa}</p>
+                              )}
+                            </div>
                           )}
 
                           {/* Options */}
@@ -435,7 +462,14 @@ export default function ResultDetail() {
                                       className="max-w-[200px] h-auto rounded"
                                     />
                                   ) : (
-                                    <span className="text-sm">{optionText}</span>
+                                    <div className="flex flex-col gap-1">
+                                      <span className="text-sm">{optionText}</span>
+                                      {question[`option${opt}Ta` as keyof typeof question] && (
+                                        <span className="text-sm text-muted-foreground border-t border-border/50 pt-1 mt-1">
+                                          {String(question[`option${opt}Ta` as keyof typeof question])}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                   {isCorrect && (
                                     <CheckCircle className="h-4 w-4 text-success ml-auto" />

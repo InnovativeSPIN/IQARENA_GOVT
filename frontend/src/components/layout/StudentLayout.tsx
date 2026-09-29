@@ -1,4 +1,5 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -9,8 +10,7 @@ import {
   HelpCircle,
   LogOut,
   Menu,
-  X,
-  GraduationCap
+  X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ const mainNav = [
   { icon: Home, label: 'Dashboard', path: '/student' },
   { icon: FileText, label: 'Tests', path: '/student/tests' },
   { icon: BarChart3, label: 'Results', path: '/student/results' },
-  { icon: Bell, label: 'Notifications', path: '/student/notifications', badge: 3 },
+  { icon: Bell, label: 'Notifications', path: '/student/notifications' },
 ];
 
 const secondaryNav = [
@@ -40,6 +40,14 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
+
+  // Unread notification count for the sidebar badge (refreshed on navigation, e.g. after reading them)
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    apiFetch<{ success: boolean; notifications: Array<{ isRead: boolean }> }>('/student/notifications')
+      .then(res => { if (res?.success) setUnreadCount(res.notifications.filter(n => !n.isRead).length); })
+      .catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -66,8 +74,8 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
               {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                <GraduationCap className="h-6 w-6 text-white" />
+              <div className="h-10 w-10 rounded-full bg-white ring-2 ring-primary/20 overflow-hidden flex items-center justify-center shadow-md">
+                <img src="/iqlogo.png" alt="IQARENA logo" className="h-full w-full object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
@@ -105,12 +113,12 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] w-72 bg-sidebar bg-stone-800 text-white border-r border-sidebar-border shadow-lg transform transition-transform duration-300 lg:static lg:shadow-none lg:sticky lg:top-16",
+            "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] w-72 bg-sidebar text-white border-r border-sidebar-border shadow-lg transform transition-transform duration-300 lg:static lg:shadow-none lg:sticky lg:top-16",
             isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           )}
         >
           <div className="h-full flex flex-col overflow-hidden">
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-stone-600 scrollbar-track-stone-800 hover:scrollbar-thumb-stone-500">
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
               {mainNav.map((item) => (
                 <Link
                   key={item.path}
@@ -120,12 +128,12 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                     "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
                     isActive(item.path)
                       ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/30"
-                      : "text-white/90 hover:bg-white hover:text-stone-800"
+                      : "text-white/90 hover:bg-white hover:text-primary"
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
                   <span className="flex-1">{item.label}</span>
-                  {item.badge && (
+                  {item.path === '/student/notifications' && unreadCount > 0 && (
                     <Badge 
                       variant={isActive(item.path) ? "secondary" : "destructive"} 
                       className={cn(
@@ -133,7 +141,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                         isActive(item.path) && "bg-white text-orange-600"
                       )}
                     >
-                      {item.badge}
+                      {unreadCount}
                     </Badge>
                   )}
                 </Link>
@@ -152,7 +160,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                     "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
                     isActive(item.path)
                       ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/30"
-                      : "text-white/90 hover:bg-white hover:text-stone-800"
+                      : "text-white/90 hover:bg-white hover:text-primary"
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />

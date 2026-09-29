@@ -58,8 +58,8 @@ export function AdminSidebar() {
       <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
         {!collapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden bg-white">
+              <img src="/iqlogo.jpeg" alt="IQARENA" className="w-full h-full object-contain" />
             </div>
             <span className="font-display font-bold text-sidebar-foreground">
               {appName}
@@ -67,8 +67,8 @@ export function AdminSidebar() {
           </div>
         )}
         {collapsed && (
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <GraduationCap className="w-5 h-5 text-primary-foreground" />
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto overflow-hidden bg-white">
+            <img src="/iqlogo.jpeg" alt="IQARENA" className="w-full h-full object-contain" />
           </div>
         )}
       </div>
@@ -98,23 +98,8 @@ export function AdminSidebar() {
         </ul>
       </nav>
 
-      {/* User Section */}
+      {/* Bottom Section */}
       <div className="border-t border-sidebar-border p-3">
-        {!collapsed && user && (
-          <div className="flex items-center gap-3 px-2 py-2 mb-2">
-            <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center">
-              <span className="text-sm font-medium text-sidebar-foreground">
-                {user.name.charAt(0)}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {user.name}
-              </p>
-              <p className="text-xs text-sidebar-muted truncate">{user.role}</p>
-            </div>
-          </div>
-        )}
         <Button
           variant="ghost"
           onClick={handleLogout}

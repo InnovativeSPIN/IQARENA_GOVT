@@ -12,17 +12,18 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { ExamSummaryCard } from '@/components/dashboard/ExamSummaryCard';
 import { apiFetch } from '@/lib/api';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 type DashboardStats = {
   totalStudents: number;
   totalFaculty: number;
   totalTests: number;
   totalQuestions: number;
-  activeBatches: number;
+  totalSchools: number;
   examStudentCounts: Record<string, number>;
   examTestCounts: Record<string, number>;
   examQuestionCounts: Record<string, number>;
-  examBatchCounts: Record<string, number>;
+  schoolStudentCounts: Array<{ schoolName: string; studentCount: number }>;
 };
 
 type Exam = {
@@ -30,27 +31,36 @@ type Exam = {
   name: string;
 };
 
+type School = {
+  id: number;
+  name: string;
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [selectedSchool, setSelectedSchool] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStatsAndExams();
-  }, []);
+    fetchStatsAndExams(selectedSchool);
+  }, [selectedSchool]);
 
-  const fetchStatsAndExams = async () => {
+  const fetchStatsAndExams = async (schoolId: string) => {
     setLoading(true);
     try {
-      let res = await apiFetch('/admin/dashboard/stats');
+      const url = schoolId === 'all' ? '/admin/dashboard/stats' : `/admin/dashboard/stats?schoolId=${schoolId}`;
+      let res = await apiFetch(url);
 
       if (!res.success) {
-        res = await apiFetch('/admin/dashboard/stats');
+        res = await apiFetch(url);
       }
 
       if (res.success && res.stats) {
         setStats(res.stats);
         if (res.exams) setExams(res.exams);
+        if (res.schools) setSchools(res.schools);
       } else {
         const examsRes = await apiFetch('/admin/dashboard/exams');
         if (examsRes.success && examsRes.exams) setExams(examsRes.exams);
@@ -65,12 +75,28 @@ export default function Dashboard() {
   return (
     <AdminLayout>
       <div className="space-y-10">
-        {/* 1. Header */}
-        <div className="page-header">
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">
-            Welcome back! Here's an overview of your exam management system.
-          </p>
+        {/* 1. Header & Filter */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
+          <div className="page-header mb-0">
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">
+              Welcome back! Here's an overview of your exam management system.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-card p-3 rounded-lg border shadow-sm">
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Filter by School:</span>
+            <select
+              value={selectedSchool}
+              onChange={(e) => setSelectedSchool(e.target.value)}
+              className="w-full md:w-64 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background"
+            >
+              <option value="all">All Schools</option>
+              {schools.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* 2. Statistic Cards */}
@@ -101,20 +127,15 @@ export default function Dashboard() {
               color="warning"
             />
             <StatCard
-              title="Active Batches"
-              value={stats ? stats.activeBatches : (loading ? '...' : '0')}
+              title="Schools"
+              value={stats ? stats.totalSchools : (loading ? '...' : '0')}
               icon={BookOpen}
               color="primary"
             />
           </div>
         </section>
 
-        {/* 3. Quick Actions */}
-        <section>
-          <h3 className="font-display font-semibold text-lg mb-4">Quick Actions</h3>
-          <QuickActions />
-        </section>
-
+       
         
           {/* Exam Summary Cards */}
           <div className="w-full">
@@ -145,7 +166,53 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-        
+
+        {/* 4. Charts */}
+        {stats && stats.schoolStudentCounts && stats.schoolStudentCounts.length > 0 && (
+          <section className="bg-card p-6 rounded-xl border">
+            <h3 className="font-display font-semibold text-lg mb-6">Students per School</h3>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.schoolStudentCounts} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                  <XAxis 
+                    dataKey="schoolName" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 12 }} 
+                    dy={10} 
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 12 }} 
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'transparent' }} 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <defs>
+                    <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1b69cf" stopOpacity={0.9}/>
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.7}/>
+                    </linearGradient>
+                  </defs>
+                  <Bar dataKey="studentCount" radius={[6, 6, 0, 0]} maxBarSize={50} fill="url(#colorStudents)">
+                    {stats.schoolStudentCounts.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={['#1b69cf', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e'][index % 7]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        )}
+
+         {/* Quick Actions */}
+        <section>
+          <h3 className="font-display font-semibold text-lg mb-4">Quick Actions</h3>
+          <QuickActions />
+        </section>
       </div>
     </AdminLayout>
   );

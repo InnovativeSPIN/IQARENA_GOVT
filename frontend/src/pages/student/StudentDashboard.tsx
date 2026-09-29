@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import NewTestPopup from '@/components/student/NewTestPopup';
 
 // Types matching backend payload
 interface StudentStats {
@@ -164,6 +165,7 @@ export default function StudentDashboard() {
 
   return (
     <StudentLayout>
+      <NewTestPopup />
       <div className="p-4 md:p-6 pb-24 lg:pb-6 space-y-6">
         {/* Welcome Banner */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground">

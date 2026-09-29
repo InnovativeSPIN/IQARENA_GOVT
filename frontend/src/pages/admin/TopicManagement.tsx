@@ -346,8 +346,8 @@ export default function TopicManagement() {
             id,
             name: topic.subjectName,
             count: topicCountMap[id] || 1,
-                examType: 'NEET',
-                color: getSubjectColor(topic.subjectName),
+            examType: 'Unknown',
+            color: getSubjectColor(topic.subjectName),
           });
         }
       }

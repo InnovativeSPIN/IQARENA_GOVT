@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api';
 import { Bell, Calendar, Trophy, Megaphone, Check, CheckCheck } from 'lucide-react';
 import StudentLayout from '@/components/layout/StudentLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,56 +8,6 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { StudentNotification } from '@/types/student';
 
-const mockNotifications: StudentNotification[] = [
-  {
-    id: '1',
-    title: 'Exam Reminder',
-    message: 'Your Physics Full Test - Mechanics starts in 1 hour. Make sure you are prepared!',
-    type: 'exam_reminder',
-    isRead: false,
-    createdAt: '2024-12-07 09:00 AM',
-  },
-  {
-    id: '2',
-    title: 'Result Published',
-    message: 'Results for "Mathematics - Calculus" test have been released. Check your performance now!',
-    type: 'result_alert',
-    isRead: false,
-    createdAt: '2024-12-06 03:30 PM',
-  },
-  {
-    id: '3',
-    title: 'New Test Assigned',
-    message: 'A new test "Chemistry - Organic Reactions" has been assigned to your batch. Available from Dec 9.',
-    type: 'announcement',
-    isRead: false,
-    createdAt: '2024-12-06 10:00 AM',
-  },
-  {
-    id: '4',
-    title: 'Exam Reminder',
-    message: 'Don\'t forget! Your Biology test is scheduled for tomorrow at 11:00 AM.',
-    type: 'exam_reminder',
-    isRead: true,
-    createdAt: '2024-12-05 06:00 PM',
-  },
-  {
-    id: '5',
-    title: 'System Update',
-    message: 'The exam platform will undergo maintenance on Dec 8, 2024 from 2 AM to 4 AM. Please plan accordingly.',
-    type: 'announcement',
-    isRead: true,
-    createdAt: '2024-12-04 11:00 AM',
-  },
-  {
-    id: '6',
-    title: 'Result Published',
-    message: 'Results for "Full Mock Test - NEET Pattern" are now available. You secured Rank #25!',
-    type: 'result_alert',
-    isRead: true,
-    createdAt: '2024-12-03 05:00 PM',
-  },
-];
 
 const getNotificationIcon = (type: StudentNotification['type']) => {
   switch (type) {
@@ -85,18 +36,38 @@ const getNotificationColor = (type: StudentNotification['type']) => {
 };
 
 export default function StudentNotifications() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<StudentNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await apiFetch<{ success: boolean; notifications: Array<StudentNotification & { createdAt: string }> }>('/student/notifications');
+        if (data?.success) {
+          setNotifications(data.notifications.map(n => ({
+            ...n,
+            id: String(n.id),
+            createdAt: new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load notifications', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, isRead: true } : n
-    ));
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    apiFetch(`/student/notifications/${id}/read`, { method: 'PATCH' }).catch(() => {});
   };
 
   const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    apiFetch('/student/notifications/read-all', { method: 'PATCH' }).catch(() => {});
   };
 
   return (
@@ -120,7 +91,9 @@ export default function StudentNotifications() {
 
         {/* Notification List */}
         <div className="space-y-3">
-          {notifications.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading notifications...</p>
+          ) : notifications.length === 0 ? (
             <Card className="border-0 shadow-sm">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Bell className="h-12 w-12 text-muted-foreground mb-4" />

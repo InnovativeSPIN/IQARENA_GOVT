@@ -470,15 +470,43 @@ export default function Login() {
                       />
                     </div>
                     {signupFetchLoading && signupUserId.trim() && (
-                      <div className="mt-2 text-xs text-orange-500">Fetching...</div>
+                      <div className="mt-2 text-xs text-orange-500 flex items-center gap-1">
+                        <span className="animate-spin inline-block w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full"></span>
+                        Fetching your details...
+                      </div>
                     )}
-                    {signupFetched && signupFetched.school_name && (
-                      <div className="mt-2 p-2 bg-orange-50 rounded text-xs text-orange-800">
-                        <strong>School:</strong> {signupFetched.school_name} <br/>
+                    {signupFetched && !signupFetchLoading && (
+                      <div className="mt-3 space-y-2">
+                        {signupFetched.school_name && (
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-gray-700">School</Label>
+                            <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
+                              {signupFetched.school_name}
+                            </div>
+                          </div>
+                        )}
                         {signupFetched.standard && (
-                          <><strong>Class:</strong> {signupFetched.standard} {signupFetched.section ? ` - ${signupFetched.section}` : ''}</>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs font-semibold text-gray-700">Class</Label>
+                              <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
+                                {signupFetched.standard}
+                              </div>
+                            </div>
+                            {signupFetched.section && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-gray-700">Section</Label>
+                                <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
+                                  {signupFetched.section}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
+                    )}
+                    {!signupFetchLoading && signupUserId.trim().length > 4 && !signupFetched && (
+                      <div className="mt-2 text-xs text-red-500">User ID not found. You can still sign up as a new user.</div>
                     )}
                   </div>
 

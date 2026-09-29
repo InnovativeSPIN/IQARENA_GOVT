@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,180 +10,114 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import {
-  LayoutDashboard,
-  BookOpen,
-  Layers,
-  FileQuestion,
-  ClipboardList,
-  BarChart3,
-  Bell,
-  User,
-  LogOut,
-  Menu,
-  X,
-  ChevronDown,
-  GraduationCap
-} from 'lucide-react';
+import { LayoutDashboard, BarChart3, Bell, User, LogOut, ChevronDown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FacultyLayoutProps {
   children: React.ReactNode;
 }
 
+// Faculty only monitors their school's students and results; test creation lives in the admin portal
 const navItems = [
-  { path: '/faculty', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { path: '/faculty/subjects', icon: BookOpen, label: 'My Subjects' },
-  { path: '/faculty/questions', icon: FileQuestion, label: 'Questions' },
-  { path: '/faculty/tests', icon: ClipboardList, label: 'Tests' },
-  { path: '/faculty/notifications', icon: Bell, label: 'Notifications' },
+  { path: '/faculty', icon: LayoutDashboard, label: 'Dashboard', short: 'Home', exact: true },
+  { path: '/faculty/students', icon: Users, label: 'Students', short: 'Students' },
+  { path: '/faculty/reports', icon: BarChart3, label: 'Test Reports', short: 'Reports' },
+  { path: '/faculty/notifications', icon: Bell, label: 'Notifications', short: 'Alerts' },
 ];
 
 export default function FacultyLayout({ children }: FacultyLayoutProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
+
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  const initials = (user?.name || 'FC').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const isActive = (item: typeof navItems[number]) =>
+    item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top Navigation */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-card border-b border-border z-50">
-        <div className="flex items-center justify-between h-full px-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-                <GraduationCap className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="font-bold text-foreground">{appName}</h1>
-                <p className="text-xs text-muted-foreground">Faculty Portal</p>
-              </div>
+      {/* Top bar */}
+      <header className="fixed top-0 left-0 right-0 h-16 z-50 bg-gradient-to-r from-[hsl(214,84%,42%)] to-[hsl(206,90%,52%)] text-white shadow-md">
+        <div className="flex items-center justify-between h-full px-4 lg:px-6">
+          <button type="button" className="flex items-center gap-2.5" onClick={() => navigate('/faculty')}>
+            <div className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center shadow-sm">
+              <img src="/iqlogo.png" alt="IQARENA logo" className="w-full h-full object-contain" />
             </div>
-          </div>
+            <div className="text-left leading-tight">
+              <p className="font-extrabold tracking-wide">{appName}</p>
+              <p className="text-[11px] text-white/80">Faculty Portal</p>
+            </div>
+          </button>
 
-          <div className="flex items-center gap-3">
-            
-            
-            <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/faculty/notifications')}>
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full text-[10px] text-destructive-foreground flex items-center justify-center">
-                3
-              </span>
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                      {user ? getInitials(user.name) : 'FC'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden md:block text-left">
-                    <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground">Faculty</p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => navigate('/faculty/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          'fixed top-16 left-0 bottom-0 w-64 bg-card border-r border-border z-40 transition-transform duration-300',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        )}
-      >
-        <nav className="p-4 space-y-1">
-          {navItems.map((item) => {
-            const isActive = item.exact 
-              ? location.pathname === item.path 
-              : location.pathname.startsWith(item.path);
-            
-            return (
+          {/* Desktop links, like the reference site's top menu */}
+          <nav className="hidden md:flex items-center gap-1">
+            {navItems.map(item => (
               <NavLink
                 key={item.path}
                 to={item.path}
-                onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                  isActive(item) ? 'bg-white text-primary shadow-sm' : 'text-white/90 hover:bg-white/15'
                 )}
               >
-                <item.icon className="h-5 w-5" />
                 {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2 px-2 text-white hover:bg-white/15 hover:text-white">
+                <Avatar className="h-8 w-8 border-2 border-white/70">
+                  <AvatarFallback className="bg-white text-primary text-xs font-bold">{initials}</AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block text-left leading-tight">
+                  <p className="text-sm font-semibold">{user?.name}</p>
+                  <p className="text-[11px] text-white/80">Faculty</p>
+                </div>
+                <ChevronDown className="h-4 w-4 text-white/80" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => navigate('/faculty/profile')}>
+                <User className="mr-2 h-4 w-4" /> Profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" /> Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <main className="pt-16 pb-20 md:pb-8 min-h-screen">
+        <div className="mx-auto max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
+      </main>
+
+      {/* Mobile bottom navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+        <div className="grid grid-cols-4">
+          {navItems.map(item => {
+            const active = isActive(item);
+            return (
+              <NavLink key={item.path} to={item.path} className={cn('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium', active ? 'text-primary' : 'text-muted-foreground')}>
+                <span className={cn('p-1.5 rounded-full', active && 'bg-primary/10')}>
+                  <item.icon className="h-5 w-5" />
+                </span>
+                {item.short}
               </NavLink>
             );
           })}
-        </nav>
-
-        {/* User Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-muted/30">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {user ? getInitials(user.name) : 'FC'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
-              <p className="text-xs text-muted-foreground">Faculty</p>
-            </div>
-          </div>
         </div>
-      </aside>
-
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main Content */}
-      <main className="lg:ml-64 pt-16 min-h-screen">
-        <div className="p-4 md:p-6 lg:p-8">
-          {children}
-        </div>
-      </main>
+      </nav>
     </div>
   );
 }

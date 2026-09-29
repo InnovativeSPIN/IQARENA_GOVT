@@ -18,6 +18,20 @@ export default {
         display: ['DM Sans', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Brand switched from orange to NMMS blue: existing orange-* classes render in blue
+        orange: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#2f7fe0',
+          600: '#1b69cf',
+          700: '#1756ad',
+          800: '#18488c',
+          900: '#193d73',
+          950: '#132749',
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

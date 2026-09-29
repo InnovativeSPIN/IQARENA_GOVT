@@ -119,7 +119,7 @@ export default function FacultyProfile() {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => { setEditDialogOpen(true); setEditForm({ name: faculty?.name || '', phone: faculty?.phone || '' }); }}>
+              <Button variant="ghost" onClick={() => { setIsEditDialogOpen(true); setEditForm({ name: faculty?.name || '', phone: faculty?.phone || '' }); }}>
                 Edit Profile
               </Button>
               <Button variant="destructive" onClick={handleLogout}>

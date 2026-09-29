@@ -28,6 +28,7 @@ import {
   CalendarX,
   Sparkles,
   MinusCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,7 +67,7 @@ import { Progress } from '@/components/ui/progress';
 interface Test {
   id: string;
   title: string;
-  examType: 'NEET' | 'JEE';
+  examType: string;
   examId: number;
   subject?: string;
   subjectId?: number;
@@ -109,6 +110,14 @@ interface Question {
   useImg?: boolean;
   subjectName?: string | null;
   topicName?: string | null;
+  subtopicId?: number | null;
+  subtopicName?: string | null;
+  question_text?: string;
+  option_a?: string;
+  option_b?: string;
+  option_c?: string;
+  option_d?: string;
+  seq?: number;
   correctAnswer?: string | null;
   explanation?: string | null;
   explanationImage?: string | null;
@@ -119,7 +128,42 @@ interface Question {
 interface TestReport { id: string; [key: string]: unknown }
 
 interface TestReportData {
-  id: string;
+  testId: string;
+  totalStudents: number;
+  attemptedStudents: number;
+  completedStudents: number;
+  inProgressStudents: number;
+  averageScore: number;
+  averagePercentage: number;
+  highestScore: number;
+  lowestScore: number;
+  averageTimeTaken: number;
+  topPerformers: Array<{
+    studentName: string;
+    score: number;
+    percentage: number;
+    rank: number;
+  }>;
+  scoreDistribution: Array<{
+    range: string;
+    count: number;
+    percentage: number;
+  }>;
+  schoolWise?: Array<{
+    schoolName: string;
+    totalStudents: number;
+    completedStudents: number;
+    averageScore: number;
+  }>;
+  questionStats?: Array<{
+    questionId: number;
+    questionText: string;
+    difficulty?: string;
+    attempts?: number;
+    correctCount: number;
+    wrongCount: number;
+    successRate: number;
+  }>;
 }
 
 
@@ -136,6 +180,11 @@ interface Allocation {
   loading?: boolean;
   perTopicCounts?: Record<string, number>;
   _lastScope?: string | null;
+  manualQuestionIds?: (string | number)[];
+  manualQuestions?: Question[];
+  previewQuestions?: Question[];
+  previewOpen?: boolean;
+  previewLoading?: boolean;
 }
 
 interface OfflinePaper {
@@ -208,6 +257,11 @@ export default function TestManagement() {
    const [allocatingQuestions, setAllocatingQuestions] = useState(false);
   const [numQuestionsToAllocate, setNumQuestionsToAllocate] = useState(10);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isManualSelectOpen, setIsManualSelectOpen] = useState(false);
+  const [manualSelectionQuestions, setManualSelectionQuestions] = useState<Question[]>([]);
+  const [loadingManualQuestions, setLoadingManualQuestions] = useState(false);
+  // null = single-subject test; otherwise the allocation (section) being picked for
+  const [manualTargetAllocId, setManualTargetAllocId] = useState<number | null>(null);
   const [previewQuestions, setPreviewQuestions] = useState<Question[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
@@ -400,10 +454,10 @@ export default function TestManagement() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast?.success('DOC downloaded');
+      toast({ title: 'Success', description: 'DOC downloaded' });
     }catch(err){
       console.error('Doc download error', err);
-      toast?.error('Doc download failed');
+      toast({ title: 'Error', description: 'Doc download failed', variant: 'destructive' });
     }
   };
 
@@ -427,11 +481,11 @@ export default function TestManagement() {
     try{
       // ensure generated
       const genRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/offline-papers/${paperId}/generate`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' } });
-      if(!genRes.ok){ const txt = await genRes.text(); console.error('Generate failed', txt); toast?.error(txt || 'Failed to generate DOC'); setDocPreviewLoading(false); return; }
+      if(!genRes.ok){ const txt = await genRes.text(); console.error('Generate failed', txt); toast({ title: 'Error', description: txt || 'Failed to generate DOC', variant: 'destructive' }); setDocPreviewLoading(false); return; }
       await genRes.json();
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/offline-papers/${paperId}/download/${type}`, { headers: { Authorization: token ? `Bearer ${token}` : '' } });
-      if(!res.ok){ const t = await res.text(); console.error('Doc fetch failed', t); toast?.error(t || 'Failed to fetch DOC'); setDocPreviewLoading(false); return; }
+      if(!res.ok){ const t = await res.text(); console.error('Doc fetch failed', t); toast({ title: 'Error', description: t || 'Failed to fetch DOC', variant: 'destructive' }); setDocPreviewLoading(false); return; }
       // Read as text and create an HTML blob so iframe can render the document preview
       const text = await res.text();
       const blob = new Blob([text], { type: 'text/html' });
@@ -441,7 +495,7 @@ export default function TestManagement() {
       setDocPreviewOpen(true);
     }catch(err){
       console.error('Doc preview failed', err);
-      toast?.error('Doc preview failed');
+      toast({ title: 'Error', description: 'Doc preview failed', variant: 'destructive' });
     }finally{
       setDocPreviewLoading(false);
     }
@@ -471,6 +525,10 @@ export default function TestManagement() {
   const [dialogTopic, setDialogTopic] = useState<number | null>(null);
   const [dialogSubtopic, setDialogSubtopic] = useState<number | null>(null);
   const [dialogBatch, setDialogBatch] = useState<number | null>(null);
+  // Class / standard values come from school_students.standard
+  const [dialogSelectedStandards, setDialogSelectedStandards] = useState<string[]>([]);
+  const [loadingStandards, setLoadingStandards] = useState(false);
+  const [dialogStandards, setDialogStandards] = useState<Array<{ standard: string; studentCount: number }>>([]);
   const [dialogSubjects, setDialogSubjects] = useState<Array<{ id: number; name: string }>>([]);
   const [dialogTopics, setDialogTopics] = useState<Array<{ id: number; name: string }>>([]);
   const [dialogSubtopics, setDialogSubtopics] = useState<Array<{ id: number; name: string }>>([]);
@@ -590,12 +648,12 @@ export default function TestManagement() {
     try{
       // trigger server generation
       const genRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/offline-papers/${paperId}/generate`, { method: 'POST', headers: { Authorization: token ? `Bearer ${token}` : '' } });
-      if(!genRes.ok){ const txt = await genRes.text(); console.error('Generate failed', txt); toast?.error(txt || 'Failed to generate PDF'); setPdfPreviewLoading(false); return; }
+      if(!genRes.ok){ const txt = await genRes.text(); console.error('Generate failed', txt); toast({ title: 'Error', description: txt || 'Failed to generate PDF', variant: 'destructive' }); setPdfPreviewLoading(false); return; }
       await genRes.json();
 
       // fetch the generated PDF file as blob
       const downloadRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/offline-papers/${paperId}/download/${type}`, { headers: { Authorization: token ? `Bearer ${token}` : '' } });
-      if(!downloadRes.ok){ const txt = await downloadRes.text(); console.error('Download failed', txt); toast?.error(txt || 'Failed to fetch PDF'); setPdfPreviewLoading(false); return; }
+      if(!downloadRes.ok){ const txt = await downloadRes.text(); console.error('Download failed', txt); toast({ title: 'Error', description: txt || 'Failed to fetch PDF', variant: 'destructive' }); setPdfPreviewLoading(false); return; }
       const blob = await downloadRes.blob();
       const url = URL.createObjectURL(blob);
       setPdfPreviewUrl(url);
@@ -604,7 +662,7 @@ export default function TestManagement() {
       setPdfPreviewOpen(true);
     }catch(err){
       console.error('PDF preview failed', err);
-      toast?.error('PDF preview failed');
+      toast({ title: 'Error', description: 'PDF preview failed', variant: 'destructive' });
     }finally{
       setPdfPreviewLoading(false);
     }
@@ -820,12 +878,20 @@ export default function TestManagement() {
   const [formData, setFormData] = useState({
     title: '',
     duration: 60,
-    numQuestions: 10,
+    numQuestions: 0,
+    marksPerQuestion: 4,
     startTime: '',
     endTime: '',
+    isRandomized: false,
+    schoolIds: [] as string[],
+    selectionMode: 'automatic' as 'automatic' | 'manual',
+    manualSelectedQuestionIds: [] as (string | number)[],
+    totalMarksOverride: null as number | null,
   });
 
-  const [autoMarks, setAutoMarks] = useState<boolean>(true);
+  const [testFormat, setTestFormat] = useState<'single' | 'multi'>('single');
+  const [dialogSchools, setDialogSchools] = useState<Array<{ id: number; school_name: string }>>([]);
+
 
   const [isPaperProcessing, setIsPaperProcessing] = useState<boolean>(false);
 
@@ -833,11 +899,6 @@ export default function TestManagement() {
   const [isPaperDialogOpen, setIsPaperDialogOpen] = useState(false);
   const [paperForm, setPaperForm] = useState({ title: '', examId: null as number | null, batchId: null as number | null, durationMinutes: 0, subjectId: null as number | null, topicId: null as number | null, subtopicId: null as number | null, numQuestions: 0, totalMarks: null as number | null });
 
-  useEffect(() => {
-    if (autoMarks) {
-      setAllocations(prev => prev.map(a => ({ ...a, marksPerQuestion: 4 })));
-    }
-  }, [autoMarks]);
 
   const [selectedExam, setSelectedExam] = useState<number | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
@@ -856,18 +917,29 @@ export default function TestManagement() {
     if (testTypeFilter === 'paper') fetchPapers();
   }, [testTypeFilter, fetchPapers]);
 
-  // Load exams
+  // Load exams and schools
   useEffect(() => {
-    const fetchExams = async () => {
+    const fetchInitialData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/meta/exams`);
-        const data = await res.json();
-        if (data.success) setExamTypes(data.exams || []);
+        const [examsRes, schoolsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/admin/meta/exams`).catch(() => null),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/schools`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
+        ]);
+        
+        if (examsRes && examsRes.ok) {
+          const data = await examsRes.json();
+          if (data.success) setExamTypes(data.exams || []);
+        }
+        
+        if (schoolsRes && schoolsRes.ok) {
+          const data = await schoolsRes.json();
+          if (data.success) setDialogSchools(data.schools || []);
+        }
       } catch (err) {
-        console.error('Failed to load exams');
+        console.error('Failed to load initial data', err);
       }
     };
-    fetchExams();
+    fetchInitialData();
   }, []);
 
   // Load subjects for filter
@@ -915,6 +987,36 @@ export default function TestManagement() {
     fetchData();
   }, [dialogExam]);
 
+  // Classes come from the selected schools' students
+  const selectedSchoolsKey = formData.schoolIds.slice().sort().join(',');
+  useEffect(() => {
+    if (!selectedSchoolsKey) {
+      setDialogStandards([]);
+      setDialogSelectedStandards([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingStandards(true);
+      try {
+        const params = new URLSearchParams({ schoolIds: selectedSchoolsKey });
+        if (dialogExam) params.set('examId', String(dialogExam));
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/meta/standards?${params}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const list: Array<{ standard: string; studentCount: number }> = data.success ? (data.standards || []) : [];
+        setDialogStandards(list);
+        // drop classes that no longer exist in the chosen schools
+        setDialogSelectedStandards(prev => prev.filter(sv => list.some(l => l.standard === sv)));
+      } catch {
+        if (!cancelled) setDialogStandards([]);
+      } finally {
+        if (!cancelled) setLoadingStandards(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedSchoolsKey, dialogExam]);
+
   // Load topics when subject is selected
   useEffect(() => {
     if (!dialogSubject) {
@@ -959,7 +1061,6 @@ export default function TestManagement() {
     };
     fetchSubtopics();
   }, [dialogTopic]);
-
 
 
   // Fetch preview from server using current dialog filters and numQuestions
@@ -1173,12 +1274,13 @@ export default function TestManagement() {
     setDialogTopic(null);
     setDialogSubtopic(null);
     setDialogBatch(null);
+    setDialogSelectedStandards([]);
     setDialogSubjects([]);
     setDialogTopics([]);
     setDialogSubtopics([]);
     setDialogBatches([]);
     setAvailableQuestions(0);
-    setFormData({ title: '', duration: 60, numQuestions: 10, startTime: '', endTime: '' });
+    setFormData({ title: '', duration: 60, numQuestions: 0, marksPerQuestion: 4, startTime: '', endTime: '', isRandomized: false, schoolIds: [], selectionMode: 'automatic', manualSelectedQuestionIds: [], totalMarksOverride: null });
     setPreviewQuestions([]);
     setExpandedQuestions(new Set());
     setApplyToAllTopics(false);
@@ -1286,6 +1388,97 @@ export default function TestManagement() {
     }
   };
 
+  // Load a random sample (or the manual picks) for one section and show it inline
+  const loadSectionPreview = async (alloc: Allocation) => {
+    if (alloc.manualQuestionIds?.length) {
+      updateAllocation(alloc.id, { previewOpen: true, previewQuestions: alloc.manualQuestions || [] });
+      return;
+    }
+    updateAllocation(alloc.id, { previewLoading: true, previewOpen: true });
+    try {
+      const qp = alloc.subtopicId ? `subtopicId=${alloc.subtopicId}` : alloc.topicId ? `topicId=${alloc.topicId}` : `subjectId=${alloc.subjectId}`;
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?${qp}`);
+      const data = await res.json();
+      const all: Question[] = data.success && Array.isArray(data.questions) ? data.questions : [];
+      const shuffled = [...all];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      updateAllocation(alloc.id, { previewQuestions: shuffled.slice(0, Number(alloc.questionCount) || 0), previewLoading: false });
+    } catch (err) {
+      console.error('Section preview failed', err);
+      updateAllocation(alloc.id, { previewQuestions: [], previewLoading: false });
+    }
+  };
+
+  const handleOpenManualSelect = async (allocId?: number) => {
+    const targetAlloc = typeof allocId === 'number' ? allocations.find(a => a.id === allocId) : undefined;
+    setManualTargetAllocId(targetAlloc ? targetAlloc.id : null);
+    if (targetAlloc) {
+      setLoadingManualQuestions(true);
+      setIsManualSelectOpen(true);
+      try {
+        const qp = targetAlloc.subtopicId ? `subtopicId=${targetAlloc.subtopicId}` : targetAlloc.topicId ? `topicId=${targetAlloc.topicId}` : `subjectId=${targetAlloc.subjectId}`;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?${qp}`);
+        const data = await res.json();
+        setManualSelectionQuestions(data.success && Array.isArray(data.questions) ? data.questions : []);
+      } catch (err) {
+        console.error('Failed to load section questions:', err);
+        setManualSelectionQuestions([]);
+      } finally {
+        setLoadingManualQuestions(false);
+      }
+      return;
+    }
+    if (!dialogSubject && allocations.length === 0) return;
+    
+    setLoadingManualQuestions(true);
+    setIsManualSelectOpen(true);
+    try {
+      if (allocations.length > 0) {
+        // Collect all possible questions for all allocations
+        let allQs: Question[] = [];
+        const seenIds = new Set<string | number>();
+        for (const a of allocations) {
+          const perTopic = Object.keys(a.perTopicCounts || {});
+          if (perTopic.length > 0) {
+            for (const tid of perTopic) {
+              const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?topicId=${tid}`);
+              const qData = await qRes.json();
+              if (qData.success && Array.isArray(qData.questions)) {
+                qData.questions.forEach((q: Question) => {
+                  if (!seenIds.has(q.id)) { seenIds.add(q.id); allQs.push(q); }
+                });
+              }
+            }
+          } else {
+             const queryParam = a.subtopicId ? `subtopicId=${a.subtopicId}` : a.topicId ? `topicId=${a.topicId}` : `subjectId=${a.subjectId}`;
+             const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?${queryParam}`);
+             const qData = await qRes.json();
+             if (qData.success && Array.isArray(qData.questions)) {
+                qData.questions.forEach((q: Question) => {
+                  if (!seenIds.has(q.id)) { seenIds.add(q.id); allQs.push(q); }
+                });
+             }
+          }
+        }
+        setManualSelectionQuestions(allQs);
+      } else {
+         const queryParam = dialogSubtopic ? `subtopicId=${dialogSubtopic}` : dialogTopic ? `topicId=${dialogTopic}` : dialogSubject ? `subjectId=${dialogSubject}` : `examId=${dialogExam}`;
+         const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?${queryParam}`);
+         const data = await res.json();
+         if (data.success && Array.isArray(data.questions)) {
+           setManualSelectionQuestions(data.questions);
+         }
+      }
+    } catch (err) {
+      console.error('Failed to load manual questions:', err);
+    } finally {
+      setLoadingManualQuestions(false);
+    }
+  };
+
   const handleCreateTest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dialogExam || !formData.title.trim()) return;
@@ -1358,11 +1551,16 @@ export default function TestManagement() {
           subtopicId: allocations.length > 0 ? null : (dialogSubtopic || null),
 
           batchId: dialogBatch || null,
+          standards: dialogSelectedStandards.length > 0 ? dialogSelectedStandards : undefined,
           duration: formData.duration,
             totalMarks: totalMarks,
+            totalMarksOverride: formData.totalMarksOverride || undefined,
               // Expand per-topic breakdowns into individual allocations for submission
               allocations: allocations.length > 0 ? allocations.flatMap(a => {
-                const marksPer = autoMarks ? 4 : Number(a.marksPerQuestion);
+                const marksPer = Number(a.marksPerQuestion) || 4;
+                if (a.manualQuestionIds && a.manualQuestionIds.length > 0) {
+                  return [{ subjectId: a.subjectId, topicId: a.topicId || null, subtopicId: a.subtopicId || null, questionCount: a.manualQuestionIds.length, marksPerQuestion: marksPer, questionIds: a.manualQuestionIds }];
+                }
                 const perTopic = Object.entries(a.perTopicCounts || {}).map(([tid, cnt]) => ({ topicId: Number(tid), cnt: Number(cnt) }));
                 if (perTopic.length > 0 && perTopic.some(p => p.cnt > 0)) {
                   return perTopic.filter(p => p.cnt > 0).map(p => ({ subjectId: a.subjectId, topicId: p.topicId, subtopicId: null, questionCount: p.cnt, marksPerQuestion: marksPer }));
@@ -1372,6 +1570,8 @@ export default function TestManagement() {
           startTime: formData.startTime || null,
           endTime: formData.endTime || null,
           createdBy: user?.id ? parseInt(user.id) : null,
+          isRandomized: formData.isRandomized,
+          schoolIds: formData.schoolIds.length > 0 ? formData.schoolIds : undefined,
           // parentFor: when combineSelected mode is active, attach selected tests as children
           parentFor: combineSelected && Array.isArray(parentFor) ? parentFor : undefined,
         }),
@@ -1420,12 +1620,23 @@ export default function TestManagement() {
         }
         
         // Step 2: Determine questionIdsToUse from normal selection flow
-        let questionIdsToUse: string[] = [];
+        let questionIdsToUse: (string | number)[] = [];
 
-        if (formData.numQuestions > 0) {
+        if (formData.selectionMode === 'manual') {
+          questionIdsToUse = formData.manualSelectedQuestionIds || [];
+          if (questionIdsToUse.length === 0) {
+            alert('⚠️ Test created, but no questions were selected manually.');
+            setIsCreateOpen(false);
+            resetDialog();
+            setSubmitting(false);
+            return;
+          }
+        } else if (formData.numQuestions > 0) {
           // Normal flow: Fetch and randomly select questions
           try {
-            const queryParam = dialogTopic 
+            const queryParam = dialogSubtopic
+              ? `subtopicId=${dialogSubtopic}`
+              : dialogTopic
               ? `topicId=${dialogTopic}` 
               : dialogSubject 
               ? `subjectId=${dialogSubject}` 
@@ -1757,6 +1968,23 @@ export default function TestManagement() {
     }
   };
 
+  const handleRetestTest = async (testId: string) => {
+    if (!confirm('Are you sure you want to create a Retest based on this test? This will copy all test configurations and, if not randomized, the exact questions. You can then edit the new test.')) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/tests/${testId}/retest`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert('Retest created successfully!');
+        fetchTests(); // Refresh the list
+      } else {
+        alert(data.message || 'Failed to create retest');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error creating retest');
+    }
+  };
+
   const handleDeleteTest = async (testId: string) => {
     if (!confirm('Delete this test permanently?')) return;
     try {
@@ -1811,13 +2039,28 @@ export default function TestManagement() {
         await fetchDialogSubtopicsFor(t.topicId || null);
         setDialogSubtopic(t.subtopicId || null);
         setDialogBatch(t.batchId || null);
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           title: t.title || test.title,
           duration: t.duration || test.duration,
           numQuestions: t.allocations && t.allocations.length > 0 ? (t.allocations as Array<{ questionCount?: number }>).reduce((s: number, a) => s + (Number(a.questionCount) || 0), 0) : (t.questionCount || test.questionCount || 0),
-          startTime: t.startTime ? new Date(t.startTime).toISOString().slice(0, 16) : '',
-          endTime: t.endTime ? new Date(t.endTime).toISOString().slice(0, 16) : '',
-        });
+          startTime: t.startTime ? toLocalInputValue(new Date(t.startTime)) : '',
+          endTime: t.endTime ? toLocalInputValue(new Date(t.endTime)) : '',
+          isRandomized: !!(t.isRandomized || t.is_randomized),
+          schoolIds: (() => {
+            const raw = t.schoolIds || t.school_ids;
+            if (Array.isArray(raw)) return raw.map(String);
+            if (typeof raw === 'string') {
+              try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed.map(String);
+              } catch (e) {
+                return [];
+              }
+            }
+            return [];
+          })()
+        }));
 
         // Detect combined/parent tests via server flag or presence of child tests
         const combinedFlag = Number(t.allSubjects || t.all_subjects || 0) === 1 || (Array.isArray(t.childTests) && t.childTests.length > 0);
@@ -2275,7 +2518,32 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
   };
 
   // Calculate total marks based on preview questions or default marks per question
+  const toLocalInputValue = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  // Set the start time and keep the end time valid (defaults to start + duration)
+  const setScheduleStart = (value: string) => {
+    setFormData(prev => {
+      if (!value) return { ...prev, startTime: '' };
+      let endTime = prev.endTime;
+      if (!endTime || endTime <= value) {
+        const end = new Date(value);
+        end.setMinutes(end.getMinutes() + (Number(prev.duration) || 60));
+        endTime = toLocalInputValue(end);
+      }
+      return { ...prev, startTime: value, endTime };
+    });
+  };
+
+  // Total computed from questions x marks, ignoring any manual override
   const calculateTotalMarks = () => {
+    if (!combineSelected && formData.totalMarksOverride) return formData.totalMarksOverride;
+    return calculateAutoTotalMarks();
+  };
+
+  const calculateAutoTotalMarks = () => {
     // If combining selected tests, show sum of selected tests' total marks
     if (combineSelected && parentForDetails && parentForDetails.length > 0) {
       return parentForDetails.reduce((s, it) => s + (Number(it.totalMarks) || 0), 0);
@@ -2286,18 +2554,18 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
         // if per-topic breakdown, sum per-topic counts
         const perTopicSum = (Object.values(a.perTopicCounts || {}).map((n) => Number(n) || 0) as number[]).reduce((s: number, n: number) => s + n, 0);
         if (perTopicSum > 0) {
-          return sum + perTopicSum * (autoMarks ? 4 : (Number(a.marksPerQuestion) || 4));
+          return sum + perTopicSum * (Number(a.marksPerQuestion) || 4);
         }
-        return sum + ((Number(a.questionCount) || 0) * (autoMarks ? 4 : (Number(a.marksPerQuestion) || 4)));
+        return sum + ((Number(a.questionCount) || 0) * (Number(a.marksPerQuestion) || 4));
       }, 0);
     }
-    if (previewQuestions.length > 0) {
-      // Sum up marks from preview questions
-      return previewQuestions.reduce((sum, q) => sum + ((typeof q.marks === 'number') ? q.marks : DEFAULT_QUESTION_MARKS), 0);
-    }
-    // Default: 4 marks per question (common for NEET/JEE)
-    return formData.numQuestions * 4;
+    // Default: use the marksPerQuestion defined in formData
+    return formData.numQuestions * formData.marksPerQuestion;
   };
+
+  const manualSelectedIds: (string | number)[] = manualTargetAllocId !== null
+    ? (allocations.find(a => a.id === manualTargetAllocId)?.manualQuestionIds || [])
+    : (formData.manualSelectedQuestionIds || []);
 
   // Total questions requested across allocations (including per-topic breakdown)
   const allocationTotalQuestions = allocations.reduce((sum, a) => {
@@ -2451,12 +2719,32 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
               <FileText className="w-4 h-4 mr-2" /> Create Paper
             </Button>
           </div>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[96vw] max-w-[1400px] sm:max-w-[1400px] max-h-[92vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Test</DialogTitle>
                 <DialogDescription>Fill in the test details below</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateTest} className="space-y-6">
+                {/* Test Format Selector (Only if not combined) */}
+                {!combineSelected && (
+                  <div className="flex gap-4 p-1 bg-muted/30 rounded-lg w-max mx-auto mb-6">
+                    <button
+                      type="button"
+                      className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${testFormat === 'single' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-muted text-muted-foreground'}`}
+                      onClick={() => { setTestFormat('single'); setAllocations([]); }}
+                    >
+                      Single Subject Test
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${testFormat === 'multi' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-muted text-muted-foreground'}`}
+                      onClick={() => setTestFormat('multi')}
+                    >
+                      Multi-Topic Test
+                    </button>
+                  </div>
+                )}
+
                 {/* Section 1: Basic Information */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b">
@@ -2464,23 +2752,22 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                     <h3 className="font-semibold text-sm">Basic Information</h3>
                   </div>
                   
-                  <div>
-                    <Label className="text-sm font-medium">Test Title *</Label>
-                    <Input
-                      placeholder="e.g., NEET Physics Mock Test - Chapter 1"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      required
-                      className="mt-1.5"
-                    />
-                    {combineSelected && parentFor && (
-                      <div className="mt-2 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-sm text-amber-700">
-                        This will attach <strong>{parentFor.length}</strong> selected tests as children of the new test.
-                      </div>
-                    )}
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Test Title *</Label>
+                      <Input
+                        placeholder="e.g., NEET Physics Mock Test - Chapter 1"
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        required
+                        className="mt-1.5"
+                      />
+                      {combineSelected && parentFor && (
+                        <div className="mt-2 px-3 py-2 rounded-md border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                          This will attach <strong>{parentFor.length}</strong> selected tests as children of the new test.
+                        </div>
+                      )}
+                    </div>
                     <div>
                       <Label className="text-sm font-medium">Exam Type *</Label>
                       <Select value={dialogExam?.toString() || ""} onValueChange={(v) => setDialogExam(v ? Number(v) : null)}>
@@ -2494,24 +2781,93 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-sm font-medium">Batch</Label>
-                      <Select value={dialogBatch?.toString() || ""} onValueChange={(v) => setDialogBatch(v ? Number(v) : null)} disabled={!dialogExam}>
-                        <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder={dialogExam ? "Select batch " : "Select exam first"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dialogBatches.map(b => (
-                            <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                      <Label className="text-sm font-medium">1. Assigned Schools</Label>
+                      <div className="border rounded-md mt-1.5 p-3 max-h-40 overflow-y-auto bg-muted/10">
+                        <div className="flex items-center justify-between border-b pb-1.5 mb-2">
+                          <span className="text-xs text-muted-foreground">Select the schools that take this test</span>
+                          {dialogSchools.length > 0 && (
+                            <button
+                              type="button"
+                              className="text-xs text-primary hover:underline"
+                              onClick={() => setFormData(prev => ({ ...prev, schoolIds: prev.schoolIds.length === dialogSchools.length ? [] : dialogSchools.map(sc => String(sc.id)) }))}
+                            >
+                              {formData.schoolIds.length === dialogSchools.length ? 'Clear' : 'Select all'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {dialogSchools.map(sch => (
+                            <label key={sch.id} className={`flex items-center gap-2 text-sm cursor-pointer p-2 rounded border ${formData.schoolIds.includes(String(sch.id)) ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/50'}`}>
+                              <input
+                                type="checkbox"
+                                checked={formData.schoolIds.includes(String(sch.id))}
+                                onChange={(e) => {
+                                  setFormData(prev => {
+                                    const newIds = e.target.checked
+                                      ? [...prev.schoolIds, String(sch.id)]
+                                      : prev.schoolIds.filter(id => id !== String(sch.id));
+                                    return { ...prev, schoolIds: newIds };
+                                  });
+                                }}
+                              />
+                              <span className="truncate">{sch.school_name}</span>
+                            </label>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">2. Classes</Label>
+                      <div className={`border rounded-md mt-1.5 p-3 max-h-40 overflow-y-auto ${formData.schoolIds.length === 0 ? 'bg-muted/40' : 'bg-muted/10'}`}>
+                        {formData.schoolIds.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-2">Select at least one school to see its classes.</p>
+                        ) : loadingStandards ? (
+                          <p className="text-xs text-muted-foreground py-2">Loading classes...</p>
+                        ) : dialogStandards.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-2">No students with a class found in the selected schools.</p>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between border-b pb-1.5 mb-2">
+                              <span className="text-xs text-muted-foreground">Leave all unticked for every class</span>
+                              <button
+                                type="button"
+                                className="text-xs text-primary hover:underline"
+                                onClick={() => setDialogSelectedStandards(prev => prev.length === dialogStandards.length ? [] : dialogStandards.map(d => d.standard))}
+                              >
+                                {dialogSelectedStandards.length === dialogStandards.length ? 'Clear' : 'Select all'}
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {dialogStandards.map(st => (
+                                <label key={st.standard} className={`flex items-center gap-2 text-sm cursor-pointer p-2 rounded border ${dialogSelectedStandards.includes(st.standard) ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/50'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={dialogSelectedStandards.includes(st.standard)}
+                                    onChange={(e) => setDialogSelectedStandards(prev => e.target.checked ? [...prev, st.standard] : prev.filter(v => v !== st.standard))}
+                                  />
+                                  <span>Class {st.standard}</span>
+                                  <span className="ml-auto text-xs text-muted-foreground">{st.studentCount} students</span>
+                                </label>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {formData.schoolIds.length > 0 && dialogStandards.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Students of {dialogSelectedStandards.length > 0 ? `class ${dialogSelectedStandards.join(', ')}` : 'all these classes'} in the selected schools are notified when the test is published.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Section 2: Content Selection */}
-                {!combineSelected ? (
+                {!combineSelected && testFormat === 'single' ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b">
                     <BookOpen className="w-4 h-4 text-primary" />
@@ -2523,14 +2879,17 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                       <Label className="text-sm font-medium">Subject *</Label>
                       <Select value={dialogSubject?.toString() || ""} onValueChange={(v) => setDialogSubject(v ? Number(v) : null)} disabled={!dialogExam}>
                         <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder={dialogExam ? "Select subject" : "Select exam first"} />
+                          <SelectValue placeholder={!dialogExam ? "Select exam first" : dialogSubjects.length === 0 ? "No subjects for this exam" : "Select subject"} />
                         </SelectTrigger>
                         <SelectContent>
                           {dialogSubjects.map(s => (
-                            <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                            <SelectItem key={s.id} value={s.id.toString()}>{s.name.trim()}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {dialogExam && dialogSubjects.length === 0 && (
+                        <p className="text-xs text-destructive mt-1">This exam has no active subjects. Add them in Subject Management first.</p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Topics</Label>
@@ -2612,64 +2971,143 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                   </div>
                 )}
 
-                {/* Section 3: Test Configuration */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <Target className="w-4 h-4 text-primary" />
-                    <h3 className="font-semibold text-sm">Test Configuration</h3>
-                  </div>
+                  {/* Section 3: Test Configuration */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Target className="w-4 h-4 text-primary" />
+                      <h3 className="font-semibold text-sm">Test Configuration</h3>
+                    </div>
 
-                  {/* When combining selected tests we auto-set duration and total marks — those fields are shown in the summary above and removed from the form */}
+                    {!combineSelected && allocations.length === 0 && (
+                      <div className="space-y-3 bg-muted/20 p-4 rounded-lg border">
+                        <Label className="text-sm font-medium">Question Selection Method</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${formData.selectionMode === 'automatic' ? 'bg-primary/5 border-primary shadow-sm' : 'hover:bg-muted/50 bg-background'}`}>
+                            <input 
+                              type="radio" 
+                              name="selectionMode" 
+                              checked={formData.selectionMode === 'automatic'} 
+                              onChange={() => setFormData(prev => ({...prev, selectionMode: 'automatic'}))} 
+                              className="mt-1"
+                            />
+                            <div>
+                              <p className="font-medium text-sm text-foreground">Automatic (Random)</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Select a quantity, questions are picked randomly.</p>
+                            </div>
+                          </label>
+                          <label className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${formData.selectionMode === 'manual' ? 'bg-primary/5 border-primary shadow-sm' : 'hover:bg-muted/50 bg-background'}`}>
+                            <input 
+                              type="radio" 
+                              name="selectionMode" 
+                              checked={formData.selectionMode === 'manual'} 
+                              onChange={() => setFormData(prev => ({...prev, selectionMode: 'manual', numQuestions: prev.manualSelectedQuestionIds.length || 0}))} 
+                              className="mt-1"
+                            />
+                            <div>
+                              <p className="font-medium text-sm text-foreground">Manual Selection</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Hand-pick specific questions from the bank.</p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* When combining selected tests we auto-set duration and total marks — those fields are shown in the summary above and removed from the form */}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <Label className="text-sm font-medium">Duration (minutes) *</Label>
-                      <Input 
-                        type="number" 
+                      <Input
+                        type="number"
                         min="1"
-                        value={formData.duration} 
+                        value={formData.duration}
                         onChange={(e) => setFormData(prev => ({ ...prev, duration: Number(e.target.value) || 0 }))}
                         className="mt-1.5"
                         placeholder="60"
                         required
                       />
-                      
                     </div>
 
-                    {!combineSelected && (
+                    {!combineSelected && testFormat === 'single' && (
                       <div>
-                        <Label className="text-sm font-medium">Number of Questions *</Label>
-                        <Input 
-                          type="number" 
+                        <Label className="text-sm font-medium">Marks per Question</Label>
+                        <Input
+                          type="number"
                           min="1"
-                          max={availableQuestions || 100}
-                          value={formData.numQuestions} 
-                          onChange={(e) => setFormData(prev => ({ ...prev, numQuestions: Number(e.target.value) || 10 }))} 
-                          disabled={!dialogSubject || allocations.length > 0}
-                          placeholder={allocations.length > 0 ? 'Derived from allocations' : (dialogSubject ? "10" : "Select subject first")}
+                          value={formData.marksPerQuestion}
+                          onChange={(e) => setFormData(prev => ({ ...prev, marksPerQuestion: Number(e.target.value) || 1 }))}
+                          disabled={allocations.length > 0}
                           className="mt-1.5"
                         />
-                        {allocations.length > 0 ? (
-                          <p className="text-xs text-muted-foreground mt-1">Derived from allocations: {allocations.reduce((s,a) => s + Number(a.questionCount || 0), 0)} questions</p>
-                        ) : (dialogSubject && (
-                          <p className="text-xs text-muted-foreground mt-1">{availableQuestions} available</p>
-                        ))}
                       </div>
                     )}
 
                     <div>
                       <Label className="text-sm font-medium">Total Marks</Label>
-                      <div className="flex items-center h-10 px-3 py-2 mt-1.5 rounded-md border border-input bg-gradient-to-r from-primary/5 to-primary/10">
-                        <Target className="w-4 h-4 mr-2 text-primary" />
-                        <span className="font-bold text-lg text-primary">
-                          {calculateTotalMarks()}
-                        </span>
+                      <div className="relative mt-1.5">
+                        <Target className="w-4 h-4 text-primary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Input
+                          type="number"
+                          min="1"
+                          value={calculateTotalMarks() || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, totalMarksOverride: Number(e.target.value) || null }))}
+                          disabled={combineSelected}
+                          className="pl-9 font-bold text-primary bg-gradient-to-r from-primary/5 to-primary/10"
+                          placeholder="0"
+                        />
                       </div>
-
+                      {formData.totalMarksOverride && !combineSelected ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Custom total (calculated: {calculateAutoTotalMarks()}).{' '}
+                          <button type="button" className="text-primary underline" onClick={() => setFormData(prev => ({ ...prev, totalMarksOverride: null }))}>Use calculated</button>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">Auto-calculated; type to override.</p>
+                      )}
                     </div>
                   </div>
 
-                  {dialogSubject && formData.numQuestions > availableQuestions && (
+                  {!combineSelected && testFormat === 'single' && (
+                    <div>
+                      <Label className="text-sm font-medium">Number of Questions *</Label>
+                      {formData.selectionMode === 'manual' ? (
+                        <div className="mt-1.5 flex flex-col sm:flex-row gap-2">
+                          <Input
+                            type="number"
+                            value={formData.manualSelectedQuestionIds?.length || ''}
+                            disabled
+                            className="sm:w-24 bg-muted text-center"
+                          />
+                          <Button type="button" variant="outline" className="sm:flex-1 border-primary text-primary hover:bg-primary/5" onClick={() => handleOpenManualSelect()} disabled={!dialogSubject}>
+                            {dialogSubject ? 'Select Questions Manually' : 'Pick a subject first'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 flex flex-col sm:flex-row gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            max={availableQuestions || 100}
+                            value={formData.numQuestions || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, numQuestions: Number(e.target.value) || 0 }))}
+                            disabled={!dialogSubject || allocations.length > 0}
+                            placeholder={allocations.length > 0 ? 'Allocated' : (dialogSubject ? "10" : "Pick Subject")}
+                            className="sm:w-24"
+                          />
+                          <Button type="button" variant="outline" className="sm:flex-1" onClick={handlePreviewQuestions} disabled={!dialogSubject || formData.numQuestions < 1}>
+                            <Eye className="w-4 h-4 mr-2" /> Preview Sample
+                          </Button>
+                        </div>
+                      )}
+                      {allocations.length > 0 ? (
+                        <p className="text-xs text-muted-foreground mt-1">Derived from allocations: {allocations.reduce((s,a) => s + Number(a.questionCount || 0), 0)} questions</p>
+                      ) : (dialogSubject && formData.selectionMode !== 'manual' && (
+                        <p className="text-xs text-muted-foreground mt-1">{availableQuestions} available{dialogSubtopic ? ' in selected subtopic' : dialogTopic ? ' in selected topic' : ''}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {dialogSubject && formData.numQuestions > availableQuestions && testFormat === 'single' && (
                     <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
                       <p className="text-xs text-destructive font-medium">
                         ⚠️ Cannot allocate {formData.numQuestions} questions. Only {availableQuestions} available.
@@ -2678,60 +3116,20 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                   )}
                 </div>
 
-                {/* Inline Question Preview CTA for Create Dialog */}
-                {shouldShowPreview && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <Eye className="w-4 h-4 text-primary" />
-                      <h3 className="font-semibold text-sm">Question Preview</h3>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 rounded-lg bg-blue-500/10">
-                              <BookOpen className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                              {hasAllocations ? (
-                                <>
-                                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-400">{allocationTotalQuestions} Questions (from allocations)</p>
-                                  <p className="text-xs text-blue-700 dark:text-blue-500">Allocations determine topics/subtopics</p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-400">{availableQuestions} Questions Available</p>
-                                  <p className="text-xs text-blue-700 dark:text-blue-500">{dialogTopic ? `From topic: ${topicName}` : `From subject: ${subjectName}`}</p>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-4 text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground">Target:</span>
-                              <span className="font-bold text-blue-900 dark:text-blue-400">{hasAllocations ? allocationTotalQuestions : formData.numQuestions} questions</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground">Total marks:</span>
-                              <span className="font-bold text-blue-900 dark:text-blue-400">{calculateTotalMarks()}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="default"
-                          variant="outline"
-                          onClick={handlePreviewQuestions}
-                          disabled={previewButtonDisabled || loadingPreview}
-                          className="bg-white dark:bg-blue-900 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-800 shrink-0"
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          {loadingPreview ? 'Loading...' : 'Preview Questions'}
-                        </Button>
-                      </div>
-                    </div>
+                {/* Preview CTA for Multi-Mode */}
+                {testFormat === 'multi' && allocations.length > 0 && !combineSelected && (
+                  <div className="flex justify-end -mt-2 mb-4">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handlePreviewQuestions}
+                      disabled={loadingPreview}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {loadingPreview ? 'Loading...' : 'Preview Allocated Questions'}
+                    </Button>
                   </div>
                 )}
 
@@ -2742,34 +3140,268 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                     <h3 className="font-semibold text-sm text-muted-foreground">Test Schedule</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-muted/30 border">
-                    <div>
-                      <Label className="flex items-center gap-1.5 text-sm font-medium">
-                        <CalendarCheck className="w-3.5 h-3.5 text-green-600" />
-                        Start Time
-                      </Label>
-                      <Input 
-                        type="datetime-local"
-                        value={formData.startTime} 
-                        onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                        className="mt-1.5"
-                      />
+                  <div className="p-5 rounded-lg bg-muted/30 border shadow-sm space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground mr-1">Quick set start:</span>
+                      {[
+                        { label: 'Now', get: () => new Date() },
+                        { label: 'In 1 hour', get: () => new Date(Date.now() + 60 * 60 * 1000) },
+                        { label: 'Today 6:00 PM', get: () => { const d = new Date(); d.setHours(18, 0, 0, 0); return d; } },
+                        { label: 'Tomorrow 9:00 AM', get: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+                      ].map(p => (
+                        <Button key={p.label} type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setScheduleStart(toLocalInputValue(p.get()))}>
+                          {p.label}
+                        </Button>
+                      ))}
+                      {(formData.startTime || formData.endTime) && (
+                        <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setFormData(prev => ({ ...prev, startTime: '', endTime: '' }))}>
+                          Clear
+                        </Button>
+                      )}
                     </div>
-                    <div>
-                      <Label className="flex items-center gap-1.5 text-sm font-medium">
-                        <CalendarX className="w-3.5 h-3.5 text-red-600" />
-                        End Time
-                      </Label>
-                      <Input 
-                        type="datetime-local"
-                        value={formData.endTime} 
-                        onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))} 
-                        min={formData.startTime || undefined}
-                        className="mt-1.5"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <CalendarCheck className="w-4 h-4 text-green-600" />
+                          Start Date & Time
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formData.startTime}
+                          onChange={(e) => setScheduleStart(e.target.value)}
+                          onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker?.(); } catch { /* unsupported */ } }}
+                          className="h-11 cursor-pointer bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <CalendarX className="w-4 h-4 text-red-600" />
+                          End Date & Time
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formData.endTime}
+                          onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                          onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker?.(); } catch { /* unsupported */ } }}
+                          min={formData.startTime || undefined}
+                          className="h-11 cursor-pointer bg-background"
+                        />
+                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground">End time is filled automatically as start time + duration; adjust it if the test window should stay open longer.</p>
+                    {formData.startTime && formData.endTime && formData.endTime <= formData.startTime && (
+                      <p className="text-xs text-destructive font-medium">End time must be after the start time.</p>
+                    )}
                   </div>
                 </div>
+
+                {/* Randomization */}
+                <div className="flex items-center gap-3 p-3 mt-6 rounded-lg bg-muted/20 border">
+                  <input
+                    type="checkbox"
+                    id="isRandomized"
+                    checked={formData.isRandomized}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isRandomized: e.target.checked }))}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <div>
+                    <Label htmlFor="isRandomized" className="text-sm font-medium cursor-pointer">Randomize Questions at Runtime</Label>
+                    <p className="text-xs text-muted-foreground">Students see questions in a different order each time</p>
+                  </div>
+                </div>
+
+                {/* Multi-Topic / Cross-Subject Allocation */}
+                {testFormat === 'multi' && (
+                  <div className="space-y-4 mt-6">
+                    <div className="flex items-center gap-2 pb-2 border-b">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <h3 className="font-semibold text-sm">Multi-Topic / Cross-Subject Allocation</h3>
+                    </div>
+
+                    {dialogExam ? (
+                      <div className="p-4 rounded-lg border space-y-4 bg-background">
+                        <div className="flex items-center justify-between border-b pb-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Split your test questions across multiple topics or subjects.</p>
+                          </div>
+                          <Button type="button" size="sm" onClick={addAllocation} className="shrink-0 h-9">
+                            <Plus className="w-4 h-4 mr-1" /> Add Section
+                          </Button>
+                        </div>
+
+                        {allocations.length > 0 ? (
+                          <div className="space-y-4 mt-2">
+                            {allocations.map((alloc, idx) => (
+                              <div key={alloc.id} className="p-4 rounded-lg bg-muted/10 border space-y-3 relative">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-primary uppercase tracking-wide">Section {idx + 1}</span>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeAllocation(alloc.id)} className="h-6 w-6 p-0 hover:bg-destructive/10">
+                                    <X className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                  <div>
+                                    <Label className="text-sm font-medium">Subject</Label>
+                                    <Select value={alloc.subjectId?.toString() || ''} onValueChange={async (v) => {
+                                      const subId = v ? Number(v) : null;
+                                      updateAllocation(alloc.id, { subjectId: subId, topicId: null, subtopicId: null, topics: [], subtopics: [], available: 0 });
+                                      if (subId) {
+                                        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/meta/topics?subjectId=${subId}`);
+                                        const d = await res.json();
+                                        if (d.success) updateAllocation(alloc.id, { topics: d.topics || [] });
+                                        const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?subjectId=${subId}`);
+                                        const qData = await qRes.json();
+                                        if (qData.success) updateAllocation(alloc.id, { available: qData.total || 0 });
+                                      }
+                                    }}>
+                                      <SelectTrigger className="mt-1.5 h-10 text-sm"><SelectValue placeholder="Subject" /></SelectTrigger>
+                                      <SelectContent>
+                                        {dialogSubjects.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Topic</Label>
+                                    <Select value={alloc.topicId?.toString() || 'none'} onValueChange={async (v) => {
+                                      const topicId = v === 'none' ? null : Number(v);
+                                      updateAllocation(alloc.id, { topicId, subtopicId: null, subtopics: [] });
+                                      if (topicId) {
+                                        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/subtopics?topicId=${topicId}`);
+                                        const d = await res.json();
+                                        if (d.success) updateAllocation(alloc.id, { subtopics: d.subtopics || [] });
+                                        const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?topicId=${topicId}`);
+                                        const qData = await qRes.json();
+                                        if (qData.success) updateAllocation(alloc.id, { available: qData.total || 0 });
+                                      } else if (alloc.subjectId) {
+                                        const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?subjectId=${alloc.subjectId}`);
+                                        const qData = await qRes.json();
+                                        if (qData.success) updateAllocation(alloc.id, { available: qData.total || 0 });
+                                      }
+                                    }} disabled={!alloc.subjectId}>
+                                      <SelectTrigger className="mt-1.5 h-10 text-sm"><SelectValue placeholder="All Topics" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">All Topics</SelectItem>
+                                        {alloc.topics.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Subtopic</Label>
+                                    <Select value={alloc.subtopicId?.toString() || 'none'} onValueChange={async (v) => {
+                                      const subtopicId = v === 'none' ? null : Number(v);
+                                      updateAllocation(alloc.id, { subtopicId });
+                                      const qp = subtopicId ? `subtopicId=${subtopicId}` : `topicId=${alloc.topicId}`;
+                                      const qRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions?${qp}`);
+                                      const qData = await qRes.json();
+                                      if (qData.success) updateAllocation(alloc.id, { available: qData.total || 0 });
+                                    }} disabled={!alloc.topicId}>
+                                      <SelectTrigger className="mt-1.5 h-10 text-sm"><SelectValue placeholder={alloc.topicId ? 'All Subtopics' : 'Select topic first'} /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">All Subtopics</SelectItem>
+                                        {alloc.subtopics.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Questions</Label>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={(alloc.manualQuestionIds?.length || alloc.questionCount) || ''}
+                                      onChange={(e) => updateAllocation(alloc.id, { questionCount: Number(e.target.value) || 0, previewQuestions: undefined })}
+                                      disabled={!!alloc.manualQuestionIds?.length}
+                                      className="mt-1.5 h-10 text-sm"
+                                      placeholder="0"
+                                    />
+                                    {alloc.manualQuestionIds?.length ? (
+                                      <p className="text-xs text-primary mt-1 font-medium">Manually chosen</p>
+                                    ) : alloc.available > 0 && <p className="text-xs text-emerald-600 mt-1 font-medium">{alloc.available} avail.</p>}
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Marks per Q</Label>
+                                    <div className="mt-1.5 flex items-center h-10 rounded-md border border-input overflow-hidden">
+                                      <button type="button" className="h-full w-9 border-r hover:bg-muted text-lg leading-none" onClick={() => updateAllocation(alloc.id, { marksPerQuestion: Math.max(1, (Number(alloc.marksPerQuestion) || 4) - 1) })}>−</button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={alloc.marksPerQuestion || ''}
+                                        onChange={(e) => updateAllocation(alloc.id, { marksPerQuestion: Number(e.target.value) || 0 })}
+                                        onBlur={() => { if (!alloc.marksPerQuestion) updateAllocation(alloc.id, { marksPerQuestion: 1 }); }}
+                                        className="w-full h-full text-center text-sm bg-transparent outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
+                                      <button type="button" className="h-full w-9 border-l hover:bg-muted text-lg leading-none" onClick={() => updateAllocation(alloc.id, { marksPerQuestion: (Number(alloc.marksPerQuestion) || 0) + 1 })}>+</button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Section actions */}
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                  <Button type="button" size="sm" variant="outline" disabled={!alloc.subjectId} onClick={() => handleOpenManualSelect(alloc.id)}>
+                                    {alloc.manualQuestionIds?.length ? `Edit chosen questions (${alloc.manualQuestionIds.length})` : 'Choose questions manually'}
+                                  </Button>
+                                  {alloc.manualQuestionIds?.length ? (
+                                    <Button type="button" size="sm" variant="ghost" onClick={() => updateAllocation(alloc.id, { manualQuestionIds: [], manualQuestions: [], questionCount: 0, previewQuestions: undefined })}>
+                                      Switch to random
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!alloc.subjectId || (!alloc.manualQuestionIds?.length && !(alloc.questionCount > 0)) || alloc.previewLoading}
+                                    onClick={() => alloc.previewOpen ? updateAllocation(alloc.id, { previewOpen: false }) : loadSectionPreview(alloc)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    {alloc.previewLoading ? 'Loading...' : alloc.previewOpen ? 'Hide preview' : 'Preview section'}
+                                  </Button>
+                                  {alloc.previewOpen && !alloc.manualQuestionIds?.length && (
+                                    <Button type="button" size="sm" variant="ghost" onClick={() => loadSectionPreview(alloc)}>Regenerate</Button>
+                                  )}
+                                  <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                                    Section total: {(alloc.manualQuestionIds?.length || Number(alloc.questionCount) || 0) * (Number(alloc.marksPerQuestion) || 0)} marks
+                                  </span>
+                                </div>
+
+                                {alloc.previewOpen && (
+                                  <div className="rounded-md border bg-background divide-y max-h-80 overflow-y-auto">
+                                    {(alloc.previewQuestions || []).length === 0 ? (
+                                      <div className="p-3 text-sm text-muted-foreground">No questions found for this section.</div>
+                                    ) : (alloc.previewQuestions || []).map((q, qi) => (
+                                      <div key={q.id} className="flex gap-3 p-3 text-sm">
+                                        <span className="flex-shrink-0 w-8 h-6 rounded border bg-muted text-xs font-semibold flex items-center justify-center">{qi + 1}</span>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium break-words">{q.text}</p>
+                                          <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-1 text-xs text-muted-foreground">
+                                            {(['A', 'B', 'C', 'D'] as const).map(o => (
+                                              <span key={o} className={`truncate rounded border px-1.5 py-0.5 ${q.correctAnswer === o ? 'border-green-600 text-green-700 bg-green-50' : ''}`}>
+                                                {o}. {String(q[`option${o}` as keyof Question] ?? '')}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <span className="flex-shrink-0 text-xs text-muted-foreground">{Number(alloc.marksPerQuestion) || 0} m</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20 shadow-sm mt-4">
+                              <span className="font-bold text-primary">Total: {allocations.reduce((s, a) => s + (a.manualQuestionIds?.length || Number(a.questionCount) || 0), 0)} Questions</span>
+                              <span className="font-bold text-primary">{calculateTotalMarks()} Marks{formData.totalMarksOverride ? ' (custom)' : ''}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            No sections added yet. Click "Add Section" to allocate questions.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">Please select an Exam Type in Basic Information first.</div>
+                    )}
+                  </div>
+                )}
               
                 {/* Action Buttons */}
 
@@ -2791,7 +3423,7 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                       // require subject only when not combining and no allocations
                       (allocations.length === 0 && !combineSelected && !dialogSubject) ||
                       // Skip numQuestions validation in combine mode
-                      (!combineSelected && (formData.numQuestions <= 0 || (allocations.length === 0 && formData.numQuestions > availableQuestions))) ||
+                      (!combineSelected && (allocations.length > 0 ? allocations.reduce((n, a) => n + (a.manualQuestionIds?.length || Number(a.questionCount) || 0), 0) <= 0 : (formData.numQuestions <= 0 || formData.numQuestions > availableQuestions))) ||
                       // Require duration to be positive
                       (!formData.duration || Number(formData.duration) <= 0)
                     }
@@ -3340,6 +3972,16 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                             <Edit className="w-4 h-4 mr-1" /> 
                           </Button>
 
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => handleRetestTest(test.id)}
+                            className="bg-teal-50 hover:bg-teal-100 border-teal-200 text-teal-700 dark:bg-teal-950 dark:hover:bg-teal-900 dark:border-teal-800 dark:text-teal-300"
+                            title="Create Retest"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" /> 
+                          </Button>
+
                           {/* Combine from this test -> create per-subject child tests */}
 
 
@@ -3427,11 +4069,12 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
             </div>
             {selectedReport && (
               <Tabs defaultValue="overview">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="performance">Performance</TabsTrigger>
                   <TabsTrigger value="questions">Questions</TabsTrigger>
                   <TabsTrigger value="students">Top Students</TabsTrigger>
+                  <TabsTrigger value="schools">Schools</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4">
@@ -3610,6 +4253,39 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                     </CardContent>
                   </Card>
                 </TabsContent>
+
+                <TabsContent value="schools" className="mt-4">
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold">School Performance</CardTitle>
+                      <CardDescription className="text-muted-foreground">Compare performance across different schools</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedReport.schoolWise && selectedReport.schoolWise.length > 0 ? (
+                        <div className="space-y-4">
+                          {selectedReport.schoolWise.map((sc, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                              <div>
+                                <div className="font-medium text-sm">{sc.schoolName || 'Unknown School'}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">
+                                  {sc.completedStudents} / {sc.totalStudents} completed
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <div className="text-lg font-bold text-primary">
+                                  {Math.round(sc.averageScore || 0)}
+                                </div>
+                                <div className="text-xs font-medium text-muted-foreground">Avg. Score</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No school data available</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               </Tabs>
             )}
           </DialogContent>
@@ -3662,19 +4338,6 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium">Batch</Label>
-                    <Select value={dialogBatch?.toString() || ""} onValueChange={(v) => setDialogBatch(v ? Number(v) : null)} disabled={!dialogExam}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder={dialogExam ? "Select batch" : "Select exam first"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dialogBatches.map(b => (
-                          <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </div>
 
@@ -3691,14 +4354,17 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                       <Label className="text-sm font-medium">Subject *</Label>
                       <Select value={dialogSubject?.toString() || ""} onValueChange={(v) => setDialogSubject(v ? Number(v) : null)} disabled={!dialogExam}>
                         <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder={dialogExam ? "Select subject" : "Select exam first"} />
+                          <SelectValue placeholder={!dialogExam ? "Select exam first" : dialogSubjects.length === 0 ? "No subjects for this exam" : "Select subject"} />
                         </SelectTrigger>
                         <SelectContent>
                           {dialogSubjects.map(s => (
-                            <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>
+                            <SelectItem key={s.id} value={s.id.toString()}>{s.name.trim()}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {dialogExam && dialogSubjects.length === 0 && (
+                        <p className="text-xs text-destructive mt-1">This exam has no active subjects. Add them in Subject Management first.</p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Topics</Label>
@@ -3757,7 +4423,7 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                       type="number" 
                       min="1"
                       max={availableQuestions || 100}
-                      value={formData.numQuestions} 
+                      value={formData.numQuestions || ''} 
                       onChange={(e) => setFormData(prev => ({ ...prev, numQuestions: Number(e.target.value) || 1 }))} 
                       disabled={!dialogSubject}
                       placeholder={dialogSubject ? "10" : "Select subject first"}
@@ -4454,111 +5120,75 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
 
         {/* Question Preview Dialog */}
         <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Question Preview - {previewQuestions.length} Questions</DialogTitle>
-                <DialogDescription>
-                  {allocations.length > 0 ? 'These questions were allocated based on your allocations.' : 'These questions will be randomly allocated to the test.'}
-                </DialogDescription>
+          <DialogContent className="w-[96vw] max-w-[1200px] sm:max-w-[1200px] max-h-[92vh] p-0 sm:p-0 gap-0 overflow-hidden flex flex-col">
+            <DialogHeader className="px-6 pt-5 pb-4 border-b">
+              <DialogTitle>Question Preview</DialogTitle>
+              <DialogDescription>
+                {allocations.length > 0 ? 'These questions were allocated based on your sections.' : 'A random sample of questions that will be allocated to the test.'}
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {previewQuestions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No questions to preview
-                </div>
-              ) : (
 
-                <>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                    <div>
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-400">
-                        📝 Total Questions: <span className="font-bold">{previewQuestions.length}</span>
-                        {' '} / <span className="text-muted">{previewQuestions.length} total</span>
-                        {' '} • Total Marks: <span className="font-bold">{previewQuestions.filter(q => !viewSubjectFilter || q.subjectId === viewSubjectFilter).reduce((sum, q) => sum + ((typeof q.marks === 'number') ? q.marks : DEFAULT_QUESTION_MARKS), 0)}</span>
-                      </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-500 mt-1">
-                        Click on any question to expand/collapse • Questions are randomly selected each time
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (expandedQuestions.size === previewQuestions.length) {
-                            setExpandedQuestions(new Set());
-                          } else {
-                            setExpandedQuestions(new Set(previewQuestions.map(q => q.id)));
-                          }
-                        }}
-                        className="bg-white dark:bg-blue-900"
-                      >
-                        {expandedQuestions.size === previewQuestions.length ? (
-                          <>
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Collapse All
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="w-3 h-3 mr-1" />
-                            Expand All
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handlePreviewQuestions}
-                        disabled={loadingPreview}
-                        className="bg-white dark:bg-blue-900"
-                      >
-                        🔄 Regenerate
-                      </Button>
-                    </div>
+            {previewQuestions.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                {loadingPreview ? 'Loading questions...' : 'No questions to preview'}
+              </div>
+            ) : (
+              <>
+                {/* Summary bar */}
+                <div className="px-6 py-3 border-b bg-muted/30 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm">
+                    <span className="text-muted-foreground">Questions</span>
+                    <span className="font-bold text-primary">{previewQuestions.length}</span>
                   </div>
+                  <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm">
+                    <span className="text-muted-foreground">Total Marks</span>
+                    <span className="font-bold text-primary">{previewQuestions.reduce((sum, q) => sum + (Number(q.marks) || DEFAULT_QUESTION_MARKS), 0)}</span>
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (expandedQuestions.size === previewQuestions.length) setExpandedQuestions(new Set());
+                        else setExpandedQuestions(new Set(previewQuestions.map(q => q.id)));
+                      }}
+                    >
+                      {expandedQuestions.size === previewQuestions.length ? 'Hide All Answers' : 'Show All Answers'}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={handlePreviewQuestions} disabled={loadingPreview}>
+                      {loadingPreview ? 'Loading...' : 'Regenerate'}
+                    </Button>
+                  </div>
+                </div>
 
-                  {/* Preview warnings (moved from alert) */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                   {previewWarnings.length > 0 && (
-                    <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                      <p className="text-sm font-medium text-destructive">⚠️ Preview warnings</p>
+                    <div className="p-3 rounded-md bg-destructive/10 border border-destructive/30">
+                      <p className="text-sm font-medium text-destructive">Preview warnings</p>
                       <ul className="text-xs mt-2 list-disc list-inside">
                         {previewWarnings.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
                     </div>
                   )}
 
-                  {/* Allocation breakdown */}
                   {previewAllocBreakdown.length > 0 && (
-                    <div className="p-3 rounded-md bg-muted/5 border">
-                      <p className="text-sm font-medium">Allocation summary</p>
-                      <div className="mt-2 space-y-2 text-sm">
+                    <div className="rounded-lg border overflow-hidden">
+                      <div className="px-4 py-2 border-b bg-muted/40 text-sm font-semibold">Allocation summary</div>
+                      <div className="divide-y">
                         {previewAllocBreakdown.map((b, idx) => (
-                          <div key={idx} className="p-2 rounded border bg-card">
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <div className="font-medium">Allocation {idx + 1}</div>
-                                <div className="text-xs text-muted-foreground">Requested: {b.requested} • Allocated: {b.allocated} • Marks/Q: {b.marksPerQuestion} • Total marks: {b.allocatedMarks}</div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {/* If this is a subject-level breakdown, allow editing that subject */}
-                                {b.subjectId && (
-                                  <Button size="sm" variant="outline" onClick={() => handleEditSubjectFromPreview(b.subjectId, b)}>
-                                    Edit Subject
-                                  </Button>
-                                )}
-                              </div>
+                          <div key={idx} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                            <div>
+                              <div className="font-medium">Section {idx + 1}</div>
+                              <div className="text-xs text-muted-foreground">Requested {b.requested} • Allocated {b.allocated} • {b.marksPerQuestion} marks/Q • {b.allocatedMarks} marks</div>
+                              {b.breakdown && b.breakdown.length > 0 && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {b.breakdown.map((d: PreviewAllocationDetail) => `${d.label}: ${d.allocated}/${d.requested}`).join(' • ')}
+                                </div>
+                              )}
                             </div>
-                            {b.breakdown && b.breakdown.length > 0 && (
-                              <div className="mt-2 text-xs">
-                                <div className="font-semibold">Details:</div>
-                                <ul className="list-disc list-inside">
-                                  {b.breakdown!.map((d: PreviewAllocationDetail, j: number) => (
-                                    <li key={j}>{d.label}: requested {d.requested}, allocated {d.allocated}, marks {d.allocatedMarks}</li>
-                                  ))}
-                                </ul>
-                              </div>
+                            {b.subjectId && (
+                              <Button size="sm" variant="outline" onClick={() => handleEditSubjectFromPreview(b.subjectId, b)}>Edit Subject</Button>
                             )}
                           </div>
                         ))}
@@ -4567,172 +5197,82 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                   )}
 
                   {previewQuestions.map((question, index) => {
-                    const hasImages = question.useImg && (question.questionImage || question.optionAImage || question.optionBImage || question.optionCImage || question.optionDImage);
                     const isExpanded = expandedQuestions.has(question.id);
-                    
                     return (
-                      <Card key={question.id} className="overflow-hidden">
-                        <CardHeader 
-                          className="bg-gradient-to-r from-primary/10 to-primary/5 pb-3 cursor-pointer hover:from-primary/15 hover:to-primary/10 transition-all"
-                          onClick={() => toggleQuestionExpansion(question.id)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="font-mono">Q{index + 1}</Badge>
-                                {question.subjectName && (
-                                  <Badge variant="secondary">{question.subjectName}</Badge>
-                                )}
-                                {question.topicName && (
-                                  <Badge variant="outline">{question.topicName}</Badge>
-                                )}
-                                {hasImages && (
-                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
-                                    🖼️ Image
-                                  </Badge>
-                                )}
-                                {question.answer && (
-                                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                    Ans: {question.correctAnswer}
-                                  </Badge>
-                                )}
-                                <Badge className="ml-auto">{question.marks} marks</Badge>
-                              </div>
-                              <CardTitle className="text-sm font-medium leading-relaxed">
-                                {question.text}
-                              </CardTitle>
-                              {question.questionImage && (
-                                <div className="mt-3">
-                                  <img
-                                    src={getImageUrl(question.questionImage) || ''}
-                                    alt="Question"
-                                    className="max-w-full h-auto rounded-lg border shadow-sm"
-                                    style={{ maxHeight: '300px' }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="ml-2 flex-shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleQuestionExpansion(question.id);
-                              }}
-                            >
-                              {isExpanded ? (
-                                <>
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs">Hide Answer</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  <span className="text-xs">Show Answer</span>
-                                </>
-                              )}
+                      <div key={question.id} className="rounded-lg border-2 border-border bg-card overflow-hidden">
+                        {/* Tab header */}
+                        <div className="flex items-stretch border-b bg-muted/40">
+                          <div className="flex items-center justify-center px-4 border-r bg-primary text-primary-foreground font-bold text-sm min-w-[56px]">
+                            Q{index + 1}
+                          </div>
+                          <div className="flex flex-1 flex-wrap items-center gap-2 px-3 py-2">
+                            {question.subjectName && <Badge variant="secondary">{question.subjectName}</Badge>}
+                            {question.topicName && <Badge variant="outline">{question.topicName}</Badge>}
+                            {question.subtopicName && <Badge variant="outline">{question.subtopicName}</Badge>}
+                          </div>
+                          <div className="flex items-center gap-2 px-3 border-l">
+                            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">{question.marks ?? DEFAULT_QUESTION_MARKS} marks</span>
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleQuestionExpansion(question.id)}>
+                              {isExpanded ? 'Hide Answer' : 'Show Answer'}
                             </Button>
                           </div>
-                        </CardHeader>
-                        {isExpanded && (
-                        <CardContent className="pt-4">
-                          <div className="space-y-2">
+                        </div>
+
+                        <div className="p-4 space-y-3">
+                          <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{question.text}</p>
+                          {question.questionImage && (
+                            <img
+                              src={getImageUrl(question.questionImage) || ''}
+                              alt="Question"
+                              className="max-w-full h-auto rounded-md border"
+                              style={{ maxHeight: '280px' }}
+                            />
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {['A', 'B', 'C', 'D'].map((option) => {
-                              const optionKey = `option${option}` as keyof Question;
-                              const optionImageKey = `option${option}Image` as keyof Question;
-                              const optionValue = question[optionKey] as string;
-                              const optionImage = question[optionImageKey] as string | null | undefined;
-                              const isCorrect = question.correctAnswer === option;
-                              
+                              const optionValue = question[`option${option}` as keyof Question] as string;
+                              const optionImage = question[`option${option}Image` as keyof Question] as string | null | undefined;
+                              const showCorrect = isExpanded && question.correctAnswer === option;
                               return (
                                 <div
                                   key={option}
-                                  className={`p-3 rounded-lg border-2 transition-all ${
-                                    isCorrect
-                                      ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/20'
-                                      : 'border-border bg-muted/30'
-                                  }`}
+                                  className={`flex items-start gap-3 rounded-md border p-2.5 ${showCorrect ? 'border-green-600 bg-green-50 dark:bg-green-950/30' : 'border-border bg-background'}`}
                                 >
-                                  <div className="flex items-start gap-3">
-                                    <div
-                                      className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-semibold text-sm ${
-                                        isCorrect
-                                          ? 'bg-orange-500 text-white'
-                                          : 'bg-muted text-muted-foreground'
-                                      }`}
-                                    >
-                                      {option}
-                                    </div>
-                                    <div className="flex-1">
-                                      {optionImage ? (
-                                        <div className="space-y-2">
-                                          <img
-                                            src={getImageUrl(optionImage) || ''}
-                                            alt={`Option ${option}`}
-                                            className="max-w-xs h-auto rounded border"
-                                            style={{ maxHeight: '200px' }}
-                                          />
-                                          {optionValue && optionValue.trim() && (
-                                            <p className="text-sm">{optionValue}</p>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <p className="text-sm pt-1">{optionValue}</p>
-                                      )}
-                                      {isCorrect && (
-                                        <div className="flex items-center gap-1 mt-2">
-                                          <CheckCircle2 className="w-4 h-4 text-orange-600" />
-                                          <span className="text-xs font-semibold text-orange-700">Correct Answer</span>
-                                        </div>
-                                      )}
-                                    </div>
+                                  <span className={`flex-shrink-0 w-6 h-6 rounded border flex items-center justify-center text-xs font-semibold ${showCorrect ? 'bg-green-600 border-green-600 text-white' : 'bg-muted'}`}>
+                                    {option}
+                                  </span>
+                                  <div className="flex-1 min-w-0 text-sm">
+                                    {optionImage && (
+                                      <img src={getImageUrl(optionImage) || ''} alt={`Option ${option}`} className="max-w-[200px] h-auto rounded border mb-1" style={{ maxHeight: '140px' }} />
+                                    )}
+                                    {optionValue && <span className="break-words">{optionValue}</span>}
                                   </div>
+                                  {showCorrect && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
                                 </div>
                               );
                             })}
                           </div>
-                          {question.explanation && (
-                            <div className="mt-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                              <p className="text-xs font-semibold text-blue-900 dark:text-blue-400 mb-1">
-                                💡 Explanation
-                              </p>
+
+                          {isExpanded && question.explanation && (
+                            <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 p-3">
+                              <p className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">Explanation</p>
                               {question.explanationImage && (
-                                <img
-                                  src={getImageUrl(question.explanationImage) || ''}
-                                  alt="Explanation"
-                                  className="max-w-md h-auto rounded border mb-2"
-                                  style={{ maxHeight: '250px' }}
-                                />
+                                <img src={getImageUrl(question.explanationImage) || ''} alt="Explanation" className="max-w-md h-auto rounded border mb-2" style={{ maxHeight: '220px' }} />
                               )}
-                              <p className="text-sm text-blue-800 dark:text-blue-300">
-                                {question.explanation}
-                              </p>
+                              <p className="text-sm text-blue-800 dark:text-blue-200">{question.explanation}</p>
                             </div>
                           )}
-                        </CardContent>
-                        )}
-                      </Card>
+                        </div>
+                      </div>
                     );
                   })}
+                </div>
+              </>
+            )}
 
-                  <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-background/95 backdrop-blur-sm border-t py-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsPreviewOpen(false)}
-                    >
-                      Close
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handlePreviewQuestions}
-                      disabled={loadingPreview}
-                    >
-                      🔄 Regenerate Preview
-                    </Button>
-                  </div>
-                </>
-              )}
+            <div className="flex justify-end gap-3 px-6 py-3 border-t bg-background">
+              <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>Close</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -5107,6 +5647,94 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
           </DialogContent>
         </Dialog>
 
+        {/* Manual Question Selection Dialog */}
+        <Dialog open={isManualSelectOpen} onOpenChange={setIsManualSelectOpen}>
+          <DialogContent className="w-[96vw] max-w-[1400px] sm:max-w-[1400px] h-[92vh] max-h-[92vh] overflow-hidden flex flex-col">
+            <DialogHeader className="flex-none">
+              <DialogTitle>Select Questions Manually</DialogTitle>
+              <DialogDescription>
+                {manualTargetAllocId !== null ? 'Pick the questions for this section.' : 'Select the exact questions you want in this test.'} Currently selected: <strong>{manualSelectedIds.length}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto pr-2 mt-4 space-y-4">
+              {loadingManualQuestions ? (
+                <div className="text-center py-8">Loading questions...</div>
+              ) : manualSelectionQuestions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No questions found for the selected criteria.</div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {manualSelectionQuestions.map((q) => {
+                    const isSelected = manualSelectedIds.includes(q.id);
+                    return (
+                      <Card key={q.id} className={`cursor-pointer transition-colors ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/50 bg-card'}`} onClick={() => {
+                        if (manualTargetAllocId !== null) {
+                          setAllocations(prev => prev.map(a => {
+                            if (a.id !== manualTargetAllocId) return a;
+                            const ids = [...(a.manualQuestionIds || [])];
+                            const qs = [...(a.manualQuestions || [])];
+                            const at = ids.indexOf(q.id);
+                            if (at >= 0) { ids.splice(at, 1); qs.splice(qs.findIndex(x => x.id === q.id), 1); }
+                            else { ids.push(q.id); qs.push(q); }
+                            return { ...a, manualQuestionIds: ids, manualQuestions: qs, questionCount: ids.length, previewQuestions: a.previewOpen ? qs : a.previewQuestions };
+                          }));
+                          return;
+                        }
+                        setFormData(prev => {
+                          const currentlySelected = [...(prev.manualSelectedQuestionIds || [])];
+                          const index = currentlySelected.indexOf(q.id);
+                          if (index >= 0) {
+                            currentlySelected.splice(index, 1);
+                          } else {
+                            currentlySelected.push(q.id);
+                          }
+                          return { ...prev, manualSelectedQuestionIds: currentlySelected, numQuestions: currentlySelected.length };
+                        });
+                      }}>
+                        <CardHeader className="p-4 pb-3">
+                          <div className="flex items-start gap-4">
+                            <Checkbox 
+                              checked={isSelected}
+                              className="mt-1"
+                            />
+                            <div className="flex-1">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                                  ID: {q.id}
+                                </Badge>
+                                {q.topicName && (
+                                  <Badge variant="outline" className="bg-gray-50 text-gray-700">
+                                    {q.topicName}
+                                  </Badge>
+                                )}
+                                <Badge className="ml-auto">{typeof q.marks === 'number' ? q.marks : formData.marksPerQuestion} marks</Badge>
+                              </div>
+                              <CardTitle className="text-sm font-medium leading-relaxed">
+                                {q.text}
+                              </CardTitle>
+                              {q.questionImage && (
+                                <div className="mt-2">
+                                  <img
+                                    src={getImageUrl(q.questionImage) || ''}
+                                    alt="Question"
+                                    className="max-h-32 object-contain rounded border bg-white"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex-none pt-4 border-t mt-4 flex justify-between items-center bg-background">
+              <span className="text-sm text-muted-foreground font-medium">Selected: {manualSelectedIds.length} questions</span>
+              <Button type="button" onClick={() => setIsManualSelectOpen(false)}>Done</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
