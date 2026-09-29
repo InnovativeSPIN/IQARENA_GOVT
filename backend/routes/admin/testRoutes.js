@@ -5,6 +5,8 @@ const router = express.Router();
 
 
 router.get('/', controllers.getTests);
+// Must stay above '/:id'
+router.get('/notification-logs', controllers.getNotificationLogs);
 router.get('/:id', controllers.getTestById);
 router.post('/', controllers.createTest);
 router.put('/:id', controllers.updateTest);

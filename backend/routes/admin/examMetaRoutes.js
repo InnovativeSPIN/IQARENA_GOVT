@@ -6,6 +6,7 @@ import {
   countQuestions,
   createExam,
   deleteExam,
+  listStandards,
 } from '../../controllers/admin/examMetaController.js';
 
 const router = express.Router();
@@ -18,6 +19,9 @@ router.get('/subjects', listAllocatedSubjects);
 
 // GET /api/admin/meta/topics?subjectId= 
 router.get('/topics', listAllocatedTopics);
+
+// GET /api/admin/meta/standards?examId= - distinct classes from school_students.standard
+router.get('/standards', listStandards);
 
 // GET /api/admin/meta/questions/count?examId=&subjectId=&topicId?=&subtopicId?=
 router.get('/questions/count', countQuestions);

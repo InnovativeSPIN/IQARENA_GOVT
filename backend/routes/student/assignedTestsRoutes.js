@@ -3,6 +3,7 @@ import { getAssignedTests, getTestStatistics } from '../../controllers/student/a
 
 const router = express.Router();
 
+
 // Get all assigned tests for student
 router.get('/', getAssignedTests);
 

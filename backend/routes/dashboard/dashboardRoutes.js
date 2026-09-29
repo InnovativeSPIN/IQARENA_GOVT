@@ -1,3 +1,4 @@
+import { optionalAuth } from '../../middleware/auth.js';
 import express from 'express';
 import { getAdminDashboardStats, getAllExams, getStudentDashboardStats } from '../../controllers/dashboard/dashBoardController.js';
 
@@ -8,6 +9,6 @@ router.get('/stats', getAdminDashboardStats);
 router.get('/exams', getAllExams);
 
 // Student dashboard
-router.get('/student/stats', getStudentDashboardStats);
+router.get('/student/stats', optionalAuth, getStudentDashboardStats);
 
 export default router;
