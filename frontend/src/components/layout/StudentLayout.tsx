@@ -13,6 +13,8 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -36,6 +38,7 @@ const secondaryNav = [
 
 export default function StudentLayout({ children }: StudentLayoutProps) {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -81,12 +84,14 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                 <h1 className="text-xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
                   {appName}
                 </h1>
-                <p className="text-xs text-orange-500 -mt-0.5">Student Portal</p>
+                <p className="text-xs text-orange-500 -mt-0.5">{t('Student Portal')}</p>
               </div>
             </div>
           </div>
 
-           
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+
             <Link to="/student/profile">
               <div className="flex items-center gap-3 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer">
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center shadow-md">
@@ -98,7 +103,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
               </div>
             </Link>
           </div>
-        
+        </div>
       </header>
 
       {/* Mobile Sidebar Overlay */}
@@ -132,7 +137,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1">{t(item.label)}</span>
                   {item.path === '/student/notifications' && unreadCount > 0 && (
                     <Badge 
                       variant={isActive(item.path) ? "secondary" : "destructive"} 
@@ -149,7 +154,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
 
               <hr className="my-2 border-white/20" />
 
-              <div className="px-3 mt-1 text-xs text-white/80 font-semibold">Account</div> 
+              <div className="px-3 mt-1 text-xs text-white/80 font-semibold">{t('Profile')}</div> 
 
               {secondaryNav.map((item) => (
                 <Link
@@ -164,7 +169,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                   )}
                 >
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1">{t(item.label)}</span>
                 </Link>
               ))} 
             </nav>
@@ -176,7 +181,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                 onClick={handleLogout}
               >
                 <LogOut className="h-5 w-5" />
-                <span>Logout</span>
+                <span>{t('Logout')}</span>
               </Button>
             </div>
           </div>
@@ -231,7 +236,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                 )}
               </div>
               <span className="text-[10px] mt-0.5 tracking-tight leading-none">
-                {item.label}
+                {t(item.label)}
               </span>
             </Link>
           );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useFacultyAuth } from '@/contexts/FacultyAuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { toast } from 'sonner';
 
 export default function FacultyProfile() {
   const { faculty, allocatedSubjects, logout, updateProfile, changePassword } = useFacultyAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -86,8 +88,8 @@ export default function FacultyProfile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Profile</h1>
-        <p className="text-muted-foreground">Manage your account settings</p>
+        <h1 className="text-2xl font-bold">{t('Profile', 'சுயவிவரம்')}</h1>
+        <p className="text-muted-foreground">{t('Manage your account settings', 'உங்கள் கணக்கு அமைப்புகளை நிர்வகிக்கவும்')}</p>
       </div>
 
       {/* Profile Card */}
@@ -105,7 +107,7 @@ export default function FacultyProfile() {
                 <h2 className="text-2xl font-bold">{faculty?.name}</h2>
                 <Badge variant="secondary" className="flex items-center gap-1">
                   <Shield className="h-3 w-3" />
-                  Faculty
+                  {t('Faculty', 'ஆசிரியர்கள்')}
                 </Badge>
               </div>
               <p className="text-muted-foreground mb-4">{faculty?.email}</p>
@@ -120,11 +122,11 @@ export default function FacultyProfile() {
 
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => { setIsEditDialogOpen(true); setEditForm({ name: faculty?.name || '', phone: faculty?.phone || '' }); }}>
-                Edit Profile
+                {t('Edit Profile', 'சுயவிவரத்தைத் திருத்து')}
               </Button>
               <Button variant="destructive" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
+                <LogOut className="h-4 w-4 mr-2" />
+                {t('Logout', 'வெளியேறு')}
               </Button>
             </div>
           </div>
@@ -135,13 +137,13 @@ export default function FacultyProfile() {
         {/* Personal Information */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Personal Information</CardTitle>
+            <CardTitle className="text-lg">{t('Personal Information', 'தனிப்பட்ட விவரங்கள்')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
               <User className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Full Name</p>
+                <p className="text-xs text-muted-foreground">{t('Full Name', 'முழுப் பெயர்')}</p>
                 <p className="font-medium">{faculty?.name}</p>
               </div>
             </div>
@@ -149,7 +151,7 @@ export default function FacultyProfile() {
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
               <Mail className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Email Address</p>
+                <p className="text-xs text-muted-foreground">{t('Email Address', 'மின்னஞ்சல் முகவரி')}</p>
                 <p className="font-medium">{faculty?.email}</p>
               </div>
             </div>
@@ -157,7 +159,7 @@ export default function FacultyProfile() {
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
               <Phone className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Phone Number</p>
+                <p className="text-xs text-muted-foreground">{t('Phone Number', 'தொலைபேசி எண்')}</p>
                 <p className="font-medium">{faculty?.phone}</p>
               </div>
             </div>
@@ -165,9 +167,9 @@ export default function FacultyProfile() {
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Member Since</p>
+                <p className="text-xs text-muted-foreground">{t('Member Since', 'இணைந்த தேதி')}</p>
                 <p className="font-medium">
-                  {faculty?.createdAt ? new Date(faculty.createdAt).toLocaleDateString('en-US', {
+                  {faculty?.createdAt ? new Date(faculty.createdAt).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
@@ -181,7 +183,7 @@ export default function FacultyProfile() {
         {/* Allocated Subjects */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Allocated Subjects</CardTitle>
+            <CardTitle className="text-lg">{t('Allocated Subjects', 'ஒதுக்கப்பட்ட பாடங்கள்')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {allocatedSubjects.map((subject) => (
@@ -196,7 +198,7 @@ export default function FacultyProfile() {
                   <div>
                     <p className="font-medium">{subject.subjectName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {subject.topicCount} topics • {subject.questionCount} questions
+                      {subject.topicCount} {t('topics', 'தலைப்புகள்')} • {subject.questionCount} {t('questions', 'வினாக்கள்')}
                     </p>
                   </div>
                 </div>
@@ -208,7 +210,7 @@ export default function FacultyProfile() {
 
             {allocatedSubjects.length === 0 && (
               <div className="text-center py-6 text-muted-foreground">
-                No subjects allocated yet
+                {t('No subjects allocated yet', 'இதுவரை பாடங்கள் ஒதுக்கப்படவில்லை')}
               </div>
             )}
           </CardContent>
@@ -218,19 +220,19 @@ export default function FacultyProfile() {
       {/* Security */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Security</CardTitle>
+          <CardTitle className="text-lg">{t('Security', 'பாதுகாப்பு')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
             <div className="flex items-center gap-3">
               <Lock className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="font-medium">Password</p>
-                <p className="text-sm text-muted-foreground">Last changed 30 days ago</p>
+                <p className="font-medium">{t('Password', 'கடவுச்சொல்')}</p>
+                <p className="text-sm text-muted-foreground">{t('Last changed 30 days ago', '30 நாட்களுக்கு முன்பு மாற்றப்பட்டது')}</p>
               </div>
             </div>
             <Button variant="outline" onClick={() => setIsPasswordDialogOpen(true)}>
-              Change Password
+              {t('Change Password', 'கடவுச்சொல்லை மாற்று')}
             </Button>
           </div>
         </CardContent>
@@ -240,29 +242,29 @@ export default function FacultyProfile() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogTitle>{t('Edit Profile', 'சுயவிவரத்தைத் திருத்து')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Full Name</Label>
+              <Label>{t('Full Name', 'முழுப் பெயர்')}</Label>
               <Input value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>{t('Phone', 'தொலைபேசி எண்')}</Label>
               <Input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>{t('Cancel', 'ரத்துசெய்க')}</Button>
             <Button onClick={async () => {
               try {
                 await updateProfile?.({ name: editForm.name, phone: editForm.phone });
-                toast.success('Profile updated');
+                toast.success(t('Profile updated', 'சுயவிவரம் புதுப்பிக்கப்பட்டது'));
                 setIsEditDialogOpen(false);
               } catch (err: any) {
-                toast.error(err?.message || 'Failed to update profile');
+                toast.error(err?.message || t('Failed to update profile', 'சுயவிவரத்தைப் புதுப்பிப்பதில் தோல்வி'));
               }
-            }}>Save</Button>
+            }}>{t('Save', 'சேமி')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -271,17 +273,17 @@ export default function FacultyProfile() {
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
+            <DialogTitle>{t('Change Password', 'கடவுச்சொல்லை மாற்று')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Current Password</Label>
+              <Label>{t('Current Password', 'தற்போதைய கடவுச்சொல்')}</Label>
               <div className="relative">
                 <Input
                   type={showCurrentPassword ? 'text' : 'password'}
                   value={passwords.current}
                   onChange={(e) => setPasswords({...passwords, current: e.target.value})}
-                  placeholder="Enter current password"
+                  placeholder={t('Enter current password', 'தற்போதைய கடவுச்சொல்லை உள்ளிடவும்')}
                 />
                 <button
                   type="button"
@@ -294,13 +296,13 @@ export default function FacultyProfile() {
             </div>
 
             <div className="space-y-2">
-              <Label>New Password</Label>
+              <Label>{t('New Password', 'புதிய கடவுச்சொல்')}</Label>
               <div className="relative">
                 <Input
                   type={showNewPassword ? 'text' : 'password'}
                   value={passwords.new}
                   onChange={(e) => setPasswords({...passwords, new: e.target.value})}
-                  placeholder="Enter new password"
+                  placeholder={t('Enter new password', 'புதிய கடவுச்சொல்லை உள்ளிடவும்')}
                 />
                 <button
                   type="button"
@@ -313,20 +315,20 @@ export default function FacultyProfile() {
             </div>
 
             <div className="space-y-2">
-              <Label>Confirm New Password</Label>
+              <Label>{t('Confirm New Password', 'புதிய கடவுச்சொல்லை உறுதிப்படுத்துக')}</Label>
               <Input
                 type="password"
                 value={passwords.confirm}
                 onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                placeholder="Confirm new password"
+                placeholder={t('Confirm new password', 'புதிய கடவுச்சொல்லை உறுதிப்படுத்தவும்')}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
-              Cancel
+              {t('Cancel', 'ரத்துசெய்க')}
             </Button>
-            <Button onClick={handleChangePassword}>Change Password</Button>
+            <Button onClick={handleChangePassword}>{t('Change Password', 'கடவுச்சொல்லை மாற்று')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

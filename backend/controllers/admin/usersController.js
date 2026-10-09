@@ -100,26 +100,46 @@ export const createUser = async (req, res) => {
     }
     const roleId = roleRows[0].id;
 
-    const [existing] = await connection.execute(
-      'SELECT id FROM users WHERE userid = ? OR email = ? OR phone = ?',
-      [userid, email || null, phone || null]
+    // Check if userid already exists
+    const [existingUserid] = await connection.execute(
+      'SELECT id FROM users WHERE userid = ?',
+      [userid]
     );
-    if (existing.length > 0) {
+    if (existingUserid.length > 0) {
       connection.release();
-      return res.status(400).json({ success: false, message: 'User with provided userid/email/phone already exists' });
+      return res.status(400).json({ success: false, message: `User ID "${userid}" is already registered` });
     }
 
-    let hashedPassword = null;
-    if (password) {
-      hashedPassword = await bcrypt.hash(password, 10);
+    // Check email uniqueness only if provided
+    if (email && email.trim()) {
+      const [existingEmail] = await connection.execute(
+        'SELECT id FROM users WHERE email = ?',
+        [email.trim()]
+      );
+      if (existingEmail.length > 0) {
+        connection.release();
+        return res.status(400).json({ success: false, message: `Email "${email}" is already registered` });
+      }
     }
+
+    const rawPassword = password || '203040';
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     // Convert status to integer: 1 = active, 0 = inactive
     const statusValue = req.body.status === 'inactive' ? 0 : 1;
     
     const [result] = await connection.execute(
       'INSERT INTO users (userid, role_id, school_id, name, phone, email, password, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [userid, roleId, role.toUpperCase() === 'FACULTY' ? (school_id || null) : null, name, phone || null, email || null, hashedPassword, statusValue]
+      [
+        userid,
+        roleId,
+        (role.toUpperCase() === 'FACULTY' || role.toUpperCase() === 'STUDENT') ? (school_id || null) : null,
+        name,
+        phone || null,
+        email || null,
+        hashedPassword,
+        statusValue
+      ]
     );
 
     const newUserId = result.insertId;
@@ -127,16 +147,26 @@ export const createUser = async (req, res) => {
       const { standard, section, batch_year, exam_id } = req.body;
       if (school_id && standard && batch_year) {
         await connection.execute(
-          'INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             user_id = VALUES(user_id),
+             school_id = VALUES(school_id),
+             student_name = VALUES(student_name),
+             phone = COALESCE(VALUES(phone), phone),
+             standard = VALUES(standard),
+             section = COALESCE(VALUES(section), section),
+             batch_year = VALUES(batch_year),
+             exam_id = COALESCE(VALUES(exam_id), exam_id)`,
           [newUserId, school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null]
         );
       }
     }
 
-      const [rows] = await connection.execute(
-        `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
-                CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
-                r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
+    const [rows] = await connection.execute(
+      `SELECT u.id, u.userid, u.school_id, u.name, u.phone, u.email, u.created_at, 
+              CASE WHEN u.status = 1 THEN 'active' ELSE 'inactive' END as status, 
+              r.name as role, ss.standard, ss.section, ss.batch_year, ss.exam_id, e.name as exam_name
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
        LEFT JOIN school_students ss ON ss.user_id = u.id
@@ -156,6 +186,34 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   const { id } = req.params;
   const { userid, name, phone, email, role, password, batchId, status, school_id } = req.body;
+
+  // Handle unlinked student records (prefixed with ss_)
+  if (String(id).startsWith('ss_')) {
+    const ssId = String(id).replace('ss_', '');
+    try {
+      const connection = await pool.getConnection();
+      const { standard, section, batch_year, exam_id } = req.body;
+      await connection.execute(
+        `UPDATE school_students 
+         SET emis_no = COALESCE(?, emis_no),
+             student_name = COALESCE(?, student_name),
+             phone = COALESCE(?, phone),
+             school_id = COALESCE(?, school_id),
+             standard = COALESCE(?, standard),
+             section = COALESCE(?, section),
+             batch_year = COALESCE(?, batch_year),
+             exam_id = COALESCE(?, exam_id)
+         WHERE id = ?`,
+        [userid || null, name || null, phone || null, school_id || null, standard || null, section || null, batch_year || null, exam_id || null, ssId]
+      );
+      connection.release();
+      return res.status(200).json({ success: true, message: 'Student updated successfully' });
+    } catch (err) {
+      console.error('Error updating unlinked student:', err);
+      return res.status(500).json({ success: false, message: 'Error updating student', error: err.message });
+    }
+  }
+
   try {
     const connection = await pool.getConnection();
 
@@ -181,15 +239,27 @@ export const updateUser = async (req, res) => {
       hashedPassword = await bcrypt.hash(password, 10);
     }
 
-    // Check for duplicates on userid/email/phone for update
-    if (userid || email || phone) {
-      const [dupe] = await connection.execute(
-        'SELECT id FROM users WHERE (userid = ? OR email = ? OR phone = ?) AND id != ?',
-        [userid || null, email || null, phone || null, id]
+    // Check for duplicate userid
+    if (userid) {
+      const [dupeUserid] = await connection.execute(
+        'SELECT id FROM users WHERE userid = ? AND id != ?',
+        [userid, id]
       );
-      if (dupe.length > 0) {
+      if (dupeUserid.length > 0) {
         connection.release();
-        return res.status(400).json({ success: false, message: 'User with provided userid/email/phone already exists' });
+        return res.status(400).json({ success: false, message: `User ID "${userid}" is already taken` });
+      }
+    }
+
+    // Check for duplicate email if provided
+    if (email && email.trim()) {
+      const [dupeEmail] = await connection.execute(
+        'SELECT id FROM users WHERE email = ? AND id != ?',
+        [email.trim(), id]
+      );
+      if (dupeEmail.length > 0) {
+        connection.release();
+        return res.status(400).json({ success: false, message: `Email "${email}" is already taken` });
       }
     }
 
@@ -200,7 +270,17 @@ export const updateUser = async (req, res) => {
     
     await connection.execute(
       'UPDATE users SET userid = COALESCE(?, userid), name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role_id = ?, school_id = ?, password = COALESCE(?, password), status = COALESCE(?, status) WHERE id = ?',
-      [userid || null, name || null, phone || null, email || null, roleId, (role && role.toUpperCase() === 'FACULTY') ? (school_id || null) : null, hashedPassword, statusValue, id]
+      [
+        userid || null,
+        name || null,
+        phone || null,
+        email || null,
+        roleId,
+        (role && (role.toUpperCase() === 'FACULTY' || role.toUpperCase() === 'STUDENT')) ? (school_id || null) : null,
+        hashedPassword,
+        statusValue,
+        id
+      ]
     );
 
     if (role && role.toUpperCase() !== 'STUDENT') {
@@ -208,20 +288,20 @@ export const updateUser = async (req, res) => {
     } else if (role && role.toUpperCase() === 'STUDENT') {
       const { standard, section, batch_year, exam_id } = req.body;
       if (school_id && standard && batch_year) {
-        const [studentRows] = await connection.execute('SELECT id FROM school_students WHERE user_id = ?', [id]);
-        if (studentRows.length === 0) {
-          // Insert new student record
-          await connection.execute(
-            'INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [id, school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null]
-          );
-        } else {
-          // Update existing student record
-          await connection.execute(
-            'UPDATE school_students SET school_id = ?, emis_no = ?, student_name = ?, phone = ?, standard = ?, section = ?, batch_year = ?, exam_id = ? WHERE user_id = ?',
-            [school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null, id]
-          );
-        }
+        await connection.execute(
+          `INSERT INTO school_students (user_id, school_id, emis_no, student_name, phone, standard, section, batch_year, exam_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             user_id = VALUES(user_id),
+             school_id = VALUES(school_id),
+             student_name = VALUES(student_name),
+             phone = COALESCE(VALUES(phone), phone),
+             standard = VALUES(standard),
+             section = COALESCE(VALUES(section), section),
+             batch_year = VALUES(batch_year),
+             exam_id = COALESCE(VALUES(exam_id), exam_id)`,
+          [id, school_id, userid, name, phone || null, standard, section || null, batch_year, exam_id || null]
+        );
       }
     }
 
@@ -259,7 +339,7 @@ export const updateUserStatus = async (req, res) => {
       connection.release();
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    await connection.execute('UPDATE users SET status = ? WHERE id = ?', [status, id]);
+    await connection.execute('UPDATE users SET status = ? WHERE id = ?', [status === 'active' ? 1 : 0, id]);
     connection.release();
     return res.status(200).json({ success: true, message: `User status updated to ${status}` });
   } catch (err) {
@@ -274,7 +354,15 @@ export const deleteUser = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
+    if (String(id).startsWith('ss_')) {
+      const ssId = String(id).replace('ss_', '');
+      await connection.execute('DELETE FROM school_students WHERE id = ?', [ssId]);
+      connection.release();
+      return res.status(200).json({ success: true, message: 'Student deleted successfully' });
+    }
+
     await connection.execute('DELETE FROM students WHERE user_id = ?', [id]);
+    await connection.execute('DELETE FROM school_students WHERE user_id = ?', [id]);
     
     // Try deleting allocations from both possible allocation table names (legacy or new)
     try {

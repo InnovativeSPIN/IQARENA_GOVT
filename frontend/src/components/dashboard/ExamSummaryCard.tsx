@@ -1,6 +1,7 @@
 import { ExamType } from '@/types/admin';
 import { cn } from '@/lib/utils';
 import { Stethoscope, FlaskConical } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface ExamSummaryCardProps {
   examType: ExamType;
@@ -15,14 +16,9 @@ export function ExamSummaryCard({
   testCount,
   questionCount,
 }: ExamSummaryCardProps) {
+  const { t } = useLanguage();
   const isNEET = examType === 'NEET';
   
-  console.log(`🎴 ExamSummaryCard Rendering - ${examType}:`, {
-    studentCount,
-    testCount,
-    questionCount
-  });
-
   return (
     <div
       className={cn(
@@ -47,15 +43,15 @@ export function ExamSummaryCard({
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-2xl font-bold">{studentCount}</p>
-            <p className="text-sm opacity-80">Students</p>
+            <p className="text-sm opacity-80">{t('Students')}</p>
           </div>
           <div>
             <p className="text-2xl font-bold">{testCount}</p>
-            <p className="text-sm opacity-80">Tests</p>
+            <p className="text-sm opacity-80">{t('Tests')}</p>
           </div>
           <div>
             <p className="text-2xl font-bold">{questionCount}</p>
-            <p className="text-sm opacity-80">Questions</p>
+            <p className="text-sm opacity-80">{t('Questions')}</p>
           </div>
         </div>
       </div>

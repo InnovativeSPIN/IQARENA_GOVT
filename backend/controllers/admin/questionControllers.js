@@ -94,6 +94,7 @@ export const getQuestions = async (req, res) => {
         correctAnswer: r.answer,
         answer: r.answer, // Include both for compatibility
         explanation: r.explanation, // Always return text explanation
+        explanationTa: r.explanation_ta,
         explanationImage: r.img_explanation ? formatImageUrl(r.img_explanation) : null,
         marks: r.marks,
         status: 'active', // Default status
@@ -208,6 +209,7 @@ export const getQuestionById = async (req, res) => {
       optionDImage: r.img_option_d ? formatImageUrl(r.img_option_d) : null,
       correctAnswer: r.answer,
       explanation: r.explanation, // Always return text explanation
+      explanationTa: r.explanation_ta,
       explanationImage: r.img_explanation ? formatImageUrl(r.img_explanation) : null,
       marks: r.marks,
       createdBy: createdBy, // Properly formatted creator name

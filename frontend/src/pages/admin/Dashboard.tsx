@@ -12,6 +12,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { ExamSummaryCard } from '@/components/dashboard/ExamSummaryCard';
 import { apiFetch } from '@/lib/api';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 type DashboardStats = {
@@ -37,6 +38,7 @@ type School = {
 };
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [exams, setExams] = useState<Exam[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
@@ -78,20 +80,20 @@ export default function Dashboard() {
         {/* 1. Header & Filter */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
           <div className="page-header mb-0">
-            <h1 className="page-title">Dashboard</h1>
+            <h1 className="page-title">{t('admin.dashboard_title', 'Dashboard')}</h1>
             <p className="page-subtitle">
-              Welcome back! Here's an overview of your exam management system.
+              {t('admin.dashboard_subtitle', "Welcome back! Here's an overview of your exam management system.")}
             </p>
           </div>
           
           <div className="flex items-center gap-3 bg-card p-3 rounded-lg border shadow-sm">
-            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Filter by School:</span>
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">{t('admin.filter_by_school', 'Filter by School:')}</span>
             <select
               value={selectedSchool}
               onChange={(e) => setSelectedSchool(e.target.value)}
               className="w-full md:w-64 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background"
             >
-              <option value="all">All Schools</option>
+              <option value="all">{t('admin.all_schools', 'All Schools')}</option>
               {schools.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -103,31 +105,31 @@ export default function Dashboard() {
         <section>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <StatCard
-              title="Total Students"
+              title={t('admin.total_students', 'Total Students')}
               value={stats ? stats.totalStudents.toLocaleString() : (loading ? '...' : '0')}
               icon={Users}
               color="primary"
             />
             <StatCard
-              title="Total Faculty"
+              title={t('admin.total_faculty', 'Total Faculty')}
               value={stats ? stats.totalFaculty : (loading ? '...' : '0')}
               icon={GraduationCap}
               color="success"
             />
             <StatCard
-              title="Total Tests"
+              title={t('admin.total_tests', 'Total Tests')}
               value={stats ? stats.totalTests : (loading ? '...' : '0')}
               icon={ClipboardList}
               color="info"
             />
             <StatCard
-              title="Questions"
+              title={t('admin.questions', 'Questions')}
               value={stats ? stats.totalQuestions.toLocaleString() : (loading ? '...' : '0')}
               icon={HelpCircle}
               color="warning"
             />
             <StatCard
-              title="Schools"
+              title={t('admin.schools', 'Schools')}
               value={stats ? stats.totalSchools : (loading ? '...' : '0')}
               icon={BookOpen}
               color="primary"
@@ -135,42 +137,38 @@ export default function Dashboard() {
           </div>
         </section>
 
-       
-        
-          {/* Exam Summary Cards */}
-          <div className="w-full">
-            <h3 className="font-display font-semibold text-lg mb-4 text-orange-600">Exam Overview</h3>
-            <div className="flex flex-wrap gap-8">
-              {loading ? (
-                <div className="text-muted-foreground">Loading exams...</div>
-              ) : exams.length > 0 ? (
-                exams.map((exam) => {
-                  const studentCount = stats?.examStudentCounts?.[exam.name] ?? 0;
-                  const testCount = stats?.examTestCounts?.[exam.name] ?? 0;
-                  const questionCount = stats?.examQuestionCounts?.[exam.name] ?? 0;
-                  
-                  
-                  
-                  return (
-                    <ExamSummaryCard
-                      key={exam.id}
-                      examType={exam.name as 'NEET' | 'JEE'}
-                      studentCount={studentCount}
-                      testCount={testCount}
-                      questionCount={questionCount}
-                    />
-                  );
-                })
-              ) : (
-                <div className="text-muted-foreground">No exam data available.</div>
-              )}
-            </div>
+        {/* Exam Summary Cards */}
+        <div className="w-full">
+          <h3 className="font-display font-semibold text-lg mb-4 text-orange-600">{t('admin.exam_overview', 'Exam Overview')}</h3>
+          <div className="flex flex-wrap gap-8">
+            {loading ? (
+              <div className="text-muted-foreground">{t('Loading exams...', 'Loading exams...')}</div>
+            ) : exams.length > 0 ? (
+              exams.map((exam) => {
+                const studentCount = stats?.examStudentCounts?.[exam.name] ?? 0;
+                const testCount = stats?.examTestCounts?.[exam.name] ?? 0;
+                const questionCount = stats?.examQuestionCounts?.[exam.name] ?? 0;
+                
+                return (
+                  <ExamSummaryCard
+                    key={exam.id}
+                    examType={exam.name as 'NEET' | 'JEE'}
+                    studentCount={studentCount}
+                    testCount={testCount}
+                    questionCount={questionCount}
+                  />
+                );
+              })
+            ) : (
+              <div className="text-muted-foreground">{t('No exam data available.', 'No exam data available.')}</div>
+            )}
           </div>
+        </div>
 
         {/* 4. Charts */}
         {stats && stats.schoolStudentCounts && stats.schoolStudentCounts.length > 0 && (
           <section className="bg-card p-6 rounded-xl border">
-            <h3 className="font-display font-semibold text-lg mb-6">Students per School</h3>
+            <h3 className="font-display font-semibold text-lg mb-6">{t('admin.students_per_school', 'Students per School')}</h3>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.schoolStudentCounts} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
@@ -210,7 +208,7 @@ export default function Dashboard() {
 
          {/* Quick Actions */}
         <section>
-          <h3 className="font-display font-semibold text-lg mb-4">Quick Actions</h3>
+          <h3 className="font-display font-semibold text-lg mb-4">{t('admin.quick_actions', 'Quick Actions')}</h3>
           <QuickActions />
         </section>
       </div>

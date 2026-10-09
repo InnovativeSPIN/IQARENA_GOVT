@@ -8,10 +8,13 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import logo from "../../public/logo.png";
 
 export default function Login() {
   const { loginWithToken } = useAuth();
+  const { t } = useLanguage();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   // Login fields
@@ -235,6 +238,11 @@ export default function Login() {
                 </span>
               </div>
             </div>
+
+            {/* Right: Language Switcher */}
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+            </div>
           </div>
         </header>
 
@@ -267,7 +275,7 @@ export default function Login() {
                 </div>
                 
                 <p className="text-sm sm:text-base text-orange-100/90 font-medium max-w-sm">
-                   Online Exam & Assessment Management Portal
+                   {t('Online Exam & Assessment Management Portal')}
                 </p>
 
                 {/* Quote Box */}
@@ -285,7 +293,7 @@ export default function Login() {
                 <div className="mt-6 sm:mt-10 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300 fill-mode-both">
                   <span className="h-px w-8 sm:w-12 bg-gradient-to-r from-transparent to-white/70" />
                   <p className="nscet-shimmer text-xs sm:text-sm font-bold tracking-[0.25em] uppercase">
-                    A Product of NSCET
+                    {t('A Product of NSCET')}
                   </p>
                   <span className="h-px w-8 sm:w-12 bg-gradient-to-l from-transparent to-white/70" />
                 </div>
@@ -356,21 +364,21 @@ export default function Login() {
                 }}>
                   <div className="text-center mb-8">
                     <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
-                      Welcome Back
+                      {t('Welcome Back')}
                     </h2>
                   </div>
 
                   {/* User ID / Email Input */}
                   <div className="space-y-2">
                     <Label htmlFor="userId" className="text-base font-semibold text-gray-700">
-                      User ID / Email
+                      {t('User ID / Email')}
                     </Label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500" />
                       <Input
                         id="userId"
                         type="text"
-                        placeholder="Enter your User ID or Email"
+                        placeholder={t('Enter your User ID or Email')}
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
                         className="pl-12 h-12 sm:h-14 text-base border-2 border-orange-200 focus:border-orange-500 rounded-xl"
@@ -383,7 +391,7 @@ export default function Login() {
                   <div className="space-y-3">
                     <Label className="text-base font-semibold text-gray-700 flex items-center gap-2">
                       <Lock className="w-5 h-5 text-orange-500" />
-                      6-Digit PIN
+                      {t('6-Digit PIN')}
                     </Label>
                     <div className="flex gap-2 justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border-2 border-orange-200">
                       {pin.map((digit, index) => (
@@ -407,13 +415,13 @@ export default function Login() {
 
                   <div className="pt-2 flex justify-center">
                     <Button type="submit" size="lg" className="w-full max-w-xs" disabled={isLoading}>
-                      {isLoading ? 'Logging In...' : 'Login'}
+                      {isLoading ? t('Logging In...') : t('Login')}
                     </Button>
                   </div>
                   <div className="pt-2 flex justify-center text-sm text-gray-600">
-                    Don't have an account? 
+                    {t("Don't have an account?")}
                     <button type="button" onClick={() => setIsLogin(false)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
-                      Sign Up
+                      {t('Sign Up')}
                     </button>
                   </div>
                 </form>
@@ -457,20 +465,20 @@ export default function Login() {
                 }}>
                   <div className="text-center mb-4">
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-1">
-                      Create Account
+                      {t('Create Account', 'Create Account')}
                     </h2>
                   </div>
 
                   <div className="space-y-1">
                     <Label htmlFor="signupUserId" className="text-xs font-semibold text-gray-700">
-                      User ID / Email
+                      {t('User ID / Email')}
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500" />
                       <Input
                         id="signupUserId"
                         type="text"
-                        placeholder="Enter your User ID or Email"
+                        placeholder={t('Enter your User ID or Email')}
                         value={signupUserId}
                         onChange={(e) => setSignupUserId(e.target.value)}
                         className="pl-10 h-10 text-sm border-2 border-orange-200 focus:border-orange-500 rounded-lg"
@@ -487,7 +495,7 @@ export default function Login() {
                       <div className="mt-3 space-y-2">
                         {signupFetched.school_name && (
                           <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-gray-700">School</Label>
+                            <Label className="text-xs font-semibold text-gray-700">{t('School')}</Label>
                             <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
                               {signupFetched.school_name}
                             </div>
@@ -496,14 +504,14 @@ export default function Login() {
                         {signupFetched.standard && (
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
-                              <Label className="text-xs font-semibold text-gray-700">Class</Label>
+                              <Label className="text-xs font-semibold text-gray-700">{t('Class')}</Label>
                               <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
                                 {signupFetched.standard}
                               </div>
                             </div>
                             {signupFetched.section && (
                               <div className="space-y-1">
-                                <Label className="text-xs font-semibold text-gray-700">Section</Label>
+                                <Label className="text-xs font-semibold text-gray-700">{t('Section')}</Label>
                                 <div className="h-10 px-3 flex items-center rounded-lg border-2 border-orange-200 bg-orange-50/60 text-sm text-gray-700 font-medium">
                                   {signupFetched.section}
                                 </div>
@@ -521,7 +529,7 @@ export default function Login() {
                   {/* Name Input */}
                   <div className="space-y-1">
                     <Label htmlFor="signupName" className="text-xs font-semibold text-gray-700">
-                      Name
+                      {t('Name')}
                     </Label>
                     <div className="relative">
                       <Input
@@ -539,7 +547,7 @@ export default function Login() {
                   {/* Phone Number */}
                   <div className="space-y-1">
                     <Label htmlFor="signupPhone" className="text-xs font-semibold text-gray-700">
-                      Phone Number
+                      {t('Phone Number')}
                     </Label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500" />
@@ -559,7 +567,7 @@ export default function Login() {
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-gray-700 flex items-center gap-2">
                       <Lock className="w-4 h-4 text-orange-500" />
-                      6-Digit PIN
+                      {t('6-Digit PIN')}
                     </Label>
                     <div className="flex gap-1.5 justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-3 rounded-lg border-2 border-orange-200">
                       {signupPin.map((digit, index) => (
@@ -583,13 +591,13 @@ export default function Login() {
 
                   <div className="pt-2 flex justify-center">
                     <Button type="submit" size="lg" className="w-full max-w-xs" disabled={isLoading}>
-                      {isLoading ? 'Signing Up...' : 'Sign Up'}
+                      {isLoading ? 'Signing Up...' : t('Sign Up')}
                     </Button>
                   </div>
                   <div className="pt-2 flex justify-center text-sm text-gray-600">
-                    Already have an account? 
+                    {t('Already have an account?')}
                     <button type="button" onClick={() => setIsLogin(true)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
-                      Login
+                      {t('Login')}
                     </button>
                   </div>
                 </form>

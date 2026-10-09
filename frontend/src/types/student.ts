@@ -45,6 +45,7 @@ export interface TestQuestion {
   optionDTa?: string;
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation: string;
+  explanationTa?: string;
   subject: string;
   topic: string;
   marks: number;
@@ -108,6 +109,7 @@ export interface QuestionReview {
   selectedOption: 'A' | 'B' | 'C' | 'D' | null;
   correctOption: 'A' | 'B' | 'C' | 'D';
   explanation: string;
+  explanationTa?: string;
   subject: string;
   topic: string;
   marks: number;

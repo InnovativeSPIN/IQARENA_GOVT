@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 
 const menuItems = [
@@ -42,6 +43,7 @@ export function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { t } = useLanguage();
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
 
   const handleLogout = () => {
@@ -83,6 +85,7 @@ export function AdminSidebar() {
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const label = t(item.label);
             return (
               <li key={item.path}>
                 <NavLink
@@ -93,10 +96,10 @@ export function AdminSidebar() {
                     isActive && 'active',
                     collapsed && 'justify-center px-2'
                   )}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? label : undefined}
                 >
                   <item.icon className={cn('w-5 h-5 shrink-0', isActive && 'text-primary-foreground')} />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="truncate">{label}</span>}
                 </NavLink>
               </li>
             );
@@ -115,7 +118,7 @@ export function AdminSidebar() {
           )}
         >
           <LogOut className="w-5 h-5" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && <span>{t('Logout')}</span>}
         </Button>
       </div>
 

@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FacultyQuestion } from '@/types/faculty';
+import { getBilingualOption, getTamilExplanation } from '@/lib/questionTranslation';
 import {
   FileQuestion,
   Plus,
@@ -374,32 +375,42 @@ export default function FacultyQuestions() {
   const renderOptionContent = (question: Partial<FacultyQuestion> | Record<string, string | number | null | undefined>, opt: 'A' | 'B' | 'C' | 'D', includeLocalPreview = false) => {
     const imgKey = `option${opt}Image`;
     const textKey = `option${opt}`;
+    const textTaKey = `option${opt}Ta`;
     const localKey = `option${opt}Image` as keyof typeof localPreviews;
     const record = question as Record<string, string | number | null | undefined>;
     
     const imageValue = record[imgKey];
     const textValue = record[textKey];
+    const textTaValue = record[textTaKey] || record[`option_${opt.toLowerCase()}_ta`];
     const image = imageValue ? String(imageValue) : '';
     const text = textValue ? String(textValue) : '';
+    const textTa = textTaValue ? String(textTaValue) : '';
     const localImg = includeLocalPreview ? (localPreviews[localKey] || '') : '';
     
     const hasImage = image && image.trim() !== '';
-    const hasText = text && text.trim() !== '';
+    const bilingual = getBilingualOption(text, textTa);
+    const hasText = Boolean(bilingual.en || bilingual.ta);
     
-    if (hasImage && hasText) {
-      return (
-        <div className="space-y-2">
-          <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />
-          <div><span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} /></div>
-        </div>
-      );
-    } else if (hasImage) {
-      return <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />;
-    } else if (hasText) {
-      return <span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} />;
-    }
-    
-    return <span className="text-gray-400">No content</span>;
+    return (
+      <div className="space-y-2">
+        {hasImage && <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />}
+        {hasText && (
+          <div className="font-medium text-foreground leading-snug">
+            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(bilingual.en) }} />
+            {bilingual.hasBoth && (
+              <>
+                <span className="text-muted-foreground/70 mx-1.5 font-normal select-none">/</span>
+                <span
+                  className="text-emerald-700 dark:text-emerald-400 font-medium"
+                  dangerouslySetInnerHTML={{ __html: renderMathSafe(bilingual.ta) }}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {(!hasImage && !hasText) && <span className="text-gray-400">No content</span>}
+      </div>
+    );
   };
   
   const toggleQuestionExpand = (questionId: string) => {
@@ -539,17 +550,23 @@ export default function FacultyQuestions() {
           const mappedQuestions = data.questions.map((q: any) => ({
             id: q.id,
             questionText: q.text || q.questionText || '',
+            questionTextTa: q.questionTextTa || q.textTa || q.question_text_ta || null,
             questionImage: q.questionImage || null,
             optionA: q.optionA || '',
+            optionATa: q.optionATa || q.option_a_ta || null,
             optionAImage: q.optionAImage || null,
             optionB: q.optionB || '',
+            optionBTa: q.optionBTa || q.option_b_ta || null,
             optionBImage: q.optionBImage || null,
             optionC: q.optionC || '',
+            optionCTa: q.optionCTa || q.option_c_ta || null,
             optionCImage: q.optionCImage || null,
             optionD: q.optionD || '',
+            optionDTa: q.optionDTa || q.option_d_ta || null,
             optionDImage: q.optionDImage || null,
             correctAnswer: q.correctAnswer || q.answer,
             explanation: q.explanation || '',
+            explanationTa: q.explanationTa || q.explanation_ta || null,
             explanationImage: q.explanationImage || null,
             marks: q.marks || 4,
             examType: q.examType,
@@ -1450,11 +1467,27 @@ export default function FacultyQuestions() {
                       </div>
 
                       </div>
-                       {expandedQuestions.has(String(question.id)) && question.explanation && (
-                          <div className="mt-2 text-xs sm:text-sm text-blue-700 bg-blue-50 rounded p-2 break-words">
-                            <span className="font-semibold">Explanation:</span> {question.explanation}
-                          </div>
-                        )}
+                       {expandedQuestions.has(String(question.id)) && (question.explanation || question.explanationTa) && (() => {
+                          const taExp = getTamilExplanation(question.explanation, question.explanationTa);
+                          return (
+                            <div className="mt-2 text-xs sm:text-sm text-blue-800 bg-blue-50 dark:bg-blue-950/20 rounded p-3 break-words space-y-2 border border-blue-200 dark:border-blue-800">
+                              <div className="font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                                <span>💡 Explanation / விளக்கம்:</span>
+                              </div>
+                              {question.explanation && (
+                                <p className="leading-relaxed">{question.explanation}</p>
+                              )}
+                              {taExp && (
+                                <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60 text-blue-950 dark:text-blue-200 leading-relaxed font-medium">
+                                  <span className="text-xs font-bold text-blue-700 dark:text-blue-400 block mb-0.5">
+                                    தமிழ் விளக்கம் (Tamil Explanation):
+                                  </span>
+                                  <span>{taExp}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                 
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-4 text-xs sm:text-sm text-muted-foreground">
@@ -2217,17 +2250,30 @@ export default function FacultyQuestions() {
                     ))}
                   </div>
 
-                  {(viewingQuestion.explanation || viewingQuestion.explanationImage) && (
-                    <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2">
-                      <Label className="text-primary">Explanation</Label>
-                      {viewingQuestion.explanation && <p className="text-sm mt-1">{viewingQuestion.explanation}</p>}
-                      {viewingQuestion.explanationImage && (
-                        <div className="mt-2">
-                          <ImageWithFallback src={viewingQuestion.explanationImage} alt="Explanation image" className="w-full max-h-72 object-contain rounded" clickToZoom={true} />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {(viewingQuestion.explanation || viewingQuestion.explanationTa || viewingQuestion.explanationImage) && (() => {
+                    const taExp = getTamilExplanation(viewingQuestion.explanation, viewingQuestion.explanationTa);
+                    return (
+                      <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 space-y-2.5">
+                        <Label className="text-primary font-semibold flex items-center gap-1.5 text-sm">
+                          <span>💡 Explanation / விளக்கம்</span>
+                        </Label>
+                        {viewingQuestion.explanation && <p className="text-sm mt-1 text-foreground leading-relaxed">{viewingQuestion.explanation}</p>}
+                        {taExp && (
+                          <div className="pt-2 border-t border-primary/10 text-xs sm:text-sm text-foreground/90 leading-relaxed">
+                            <span className="text-xs font-bold text-primary block mb-0.5">
+                              தமிழ் விளக்கம் (Tamil Explanation):
+                            </span>
+                            <span>{taExp}</span>
+                          </div>
+                        )}
+                        {viewingQuestion.explanationImage && (
+                          <div className="mt-2">
+                            <ImageWithFallback src={viewingQuestion.explanationImage} alt="Explanation image" className="w-full max-h-72 object-contain rounded" clickToZoom={true} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Right: Meta & actions */}

@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, ClipboardList, CheckCircle2, TrendingUp, School, ArrowRight, Radio, CalendarClock, AlertCircle } from 'lucide-react';
 import { SchoolOverview, formatDateTime, percentTone } from '@/types/facultySchool';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function FacultyDashboard() {
   const { faculty } = useFacultyAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [data, setData] = useState<SchoolOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,12 +47,12 @@ export default function FacultyDashboard() {
     );
   }
 
-  const { school, stats } = data;
+    const { school, stats } = data;
   const cards = [
-    { label: 'Students', value: stats.totalStudents, sub: `${stats.studentsWithLogin} with login`, icon: Users, tile: 'bg-amber-100 border-amber-200', iconTone: 'text-amber-600', onClick: () => navigate('/faculty/students') },
-    { label: 'Published tests', value: stats.publishedTests, sub: `${stats.liveTests} live now`, icon: ClipboardList, tile: 'bg-sky-100 border-sky-200', iconTone: 'text-sky-600', onClick: () => navigate('/faculty/reports') },
-    { label: 'Completed attempts', value: stats.completedAttempts, sub: 'by your students', icon: CheckCircle2, tile: 'bg-emerald-100 border-emerald-200', iconTone: 'text-emerald-600', onClick: () => navigate('/faculty/reports') },
-    { label: 'Average score', value: `${stats.averagePercent}%`, sub: `${stats.passRate}% passed`, icon: TrendingUp, tile: 'bg-violet-100 border-violet-200', iconTone: 'text-violet-600', onClick: () => navigate('/faculty/reports') },
+    { label: t('faculty.students', 'Students'), value: stats.totalStudents, sub: `${stats.studentsWithLogin} ${t('faculty.with_login', 'with login')}`, icon: Users, tile: 'bg-amber-100 border-amber-200', iconTone: 'text-amber-600', onClick: () => navigate('/faculty/students') },
+    { label: t('faculty.published_tests', 'Published tests'), value: stats.publishedTests, sub: `${stats.liveTests} ${t('faculty.live_now', 'live now')}`, icon: ClipboardList, tile: 'bg-sky-100 border-sky-200', iconTone: 'text-sky-600', onClick: () => navigate('/faculty/reports') },
+    { label: t('faculty.completed_attempts', 'Completed attempts'), value: stats.completedAttempts, sub: t('faculty.by_students', 'by your students'), icon: CheckCircle2, tile: 'bg-emerald-100 border-emerald-200', iconTone: 'text-emerald-600', onClick: () => navigate('/faculty/reports') },
+    { label: t('faculty.average_score', 'Average score'), value: `${stats.averagePercent}%`, sub: `${stats.passRate}% ${t('faculty.passed', 'passed')}`, icon: TrendingUp, tile: 'bg-violet-100 border-violet-200', iconTone: 'text-violet-600', onClick: () => navigate('/faculty/reports') },
   ];
 
   return (
@@ -62,18 +64,20 @@ export default function FacultyDashboard() {
         <div className="relative flex flex-col md:flex-row md:items-center gap-5">
           <div className="p-4 rounded-2xl bg-white/15 backdrop-blur w-fit"><School className="w-9 h-9" /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-white/85">வணக்கம், {faculty?.name || 'Faculty'} 👋</p>
+            <p className="text-sm text-white/85">
+              {language === 'ta' ? 'வணக்கம்' : 'Welcome'}, {faculty?.name || (language === 'ta' ? 'ஆசிரியர்' : 'Faculty')} 👋
+            </p>
             <h1 className="text-2xl md:text-3xl font-extrabold truncate">{school.schoolName}</h1>
             <p className="text-xs md:text-sm text-white/80 mt-1">
-              {[school.district, school.udiseCode && `UDISE ${school.udiseCode}`].filter(Boolean).join(' • ') || 'Your school'} • Monitor your students' tests and results
+              {[school.district, school.udiseCode && `UDISE ${school.udiseCode}`].filter(Boolean).join(' • ') || (language === 'ta' ? 'உங்கள் பள்ளி' : 'Your school')} • {t('faculty.monitor_desc', "Monitor your students' tests and results")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button className="bg-white text-primary hover:bg-white/90 rounded-full" onClick={() => navigate('/faculty/reports')}>
-              Test reports <ArrowRight className="w-4 h-4 ml-1" />
+              {t('faculty.test_reports_btn', 'Test reports')} <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
             <Button variant="outline" className="rounded-full border-white/70 bg-transparent text-white hover:bg-white/15 hover:text-white" onClick={() => navigate('/faculty/students')}>
-              Students
+              {t('faculty.students_btn', 'Students')}
             </Button>
           </div>
         </div>
@@ -81,8 +85,8 @@ export default function FacultyDashboard() {
 
       {/* Quick access tiles */}
       <div>
-        <h2 className="text-lg font-bold text-center mb-1">Quick Access</h2>
-        <p className="text-xs text-muted-foreground text-center mb-4">Everything about your school's progress in one place</p>
+        <h2 className="text-lg font-bold text-center mb-1">{t('faculty.quick_access', 'Quick Access')}</h2>
+        <p className="text-xs text-muted-foreground text-center mb-4">{t('faculty.quick_access_desc', "Everything about your school's progress in one place")}</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {cards.map(c => (
             <button

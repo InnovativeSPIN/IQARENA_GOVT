@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LayoutDashboard, BarChart3, Bell, User, LogOut, ChevronDown, Users, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 
 interface FacultyLayoutProps {
   children: React.ReactNode;
@@ -28,10 +30,10 @@ const navItems = [
 
 export default function FacultyLayout({ children }: FacultyLayoutProps) {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
-
 
   const handleLogout = () => {
     logout();
@@ -53,7 +55,7 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
             </div>
             <div className="text-left leading-tight">
               <p className="font-extrabold tracking-wide">{appName}</p>
-              <p className="text-[11px] text-white/80">Faculty Portal</p>
+              <p className="text-[11px] text-white/80">{t('Faculty Portal')}</p>
             </div>
           </button>
 
@@ -68,34 +70,38 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
                   isActive(item) ? 'bg-white text-primary shadow-sm' : 'text-white/90 hover:bg-white/15'
                 )}
               >
-                {item.label}
+                {t(item.label)}
               </NavLink>
             ))}
           </nav>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2 px-2 text-white hover:bg-white/15 hover:text-white">
-                <Avatar className="h-8 w-8 border-2 border-white/70">
-                  <AvatarFallback className="bg-white text-primary text-xs font-bold">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="hidden sm:block text-left leading-tight">
-                  <p className="text-sm font-semibold">{user?.name}</p>
-                  <p className="text-[11px] text-white/80">Faculty</p>
-                </div>
-                <ChevronDown className="h-4 w-4 text-white/80" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => navigate('/faculty/profile')}>
-                <User className="mr-2 h-4 w-4" /> Profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" /> Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher variant="light" />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2 px-2 text-white hover:bg-white/15 hover:text-white">
+                  <Avatar className="h-8 w-8 border-2 border-white/70">
+                    <AvatarFallback className="bg-white text-primary text-xs font-bold">{initials}</AvatarFallback>
+                  </Avatar>
+                  <div className="hidden sm:block text-left leading-tight">
+                    <p className="text-sm font-semibold">{user?.name}</p>
+                    <p className="text-[11px] text-white/80">{t('Faculty')}</p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-white/80" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => navigate('/faculty/profile')}>
+                  <User className="mr-2 h-4 w-4" /> {t('Profile')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" /> {t('Logout')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
@@ -113,7 +119,7 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
                 <span className={cn('p-1.5 rounded-full', active && 'bg-primary/10')}>
                   <item.icon className="h-5 w-5" />
                 </span>
-                {item.short}
+                {t(item.label)}
               </NavLink>
             );
           })}

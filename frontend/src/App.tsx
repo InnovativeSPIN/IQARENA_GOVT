@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { StudentAuthProvider } from "@/contexts/StudentAuthContext";
 import { FacultyAuthProvider } from "@/contexts/FacultyAuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 // Admin Pages
 import Login from "./pages/Login";
@@ -140,19 +141,21 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <StudentAuthProvider>
-        <FacultyAuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </FacultyAuthProvider>
-      </StudentAuthProvider>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <StudentAuthProvider>
+          <FacultyAuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </FacultyAuthProvider>
+        </StudentAuthProvider>
+      </AuthProvider>
+    </LanguageProvider>
   </QueryClientProvider>
 );
 

@@ -32,17 +32,23 @@ export interface FacultyTopic {
 export interface FacultyQuestion {
   id: string;
   questionText: string;
+  questionTextTa?: string | null;
   questionImage?: string | null;
   optionA: string;
+  optionATa?: string | null;
   optionAImage?: string | null;
   optionB: string;
+  optionBTa?: string | null;
   optionBImage?: string | null;
   optionC: string;
+  optionCTa?: string | null;
   optionCImage?: string | null;
   optionD: string;
+  optionDTa?: string | null;
   optionDImage?: string | null;
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation: string;
+  explanationTa?: string | null;
   explanationImage?: string | null;
   marks: number;
   examType: 'NEET' | 'JEE';

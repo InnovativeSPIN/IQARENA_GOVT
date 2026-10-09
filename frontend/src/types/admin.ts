@@ -55,6 +55,7 @@ export interface Question {
   optionDTa?: string;
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation: string;
+  explanationTa?: string;
   explanationImage?: string | null;
   marks: number;
   examType: ExamType;

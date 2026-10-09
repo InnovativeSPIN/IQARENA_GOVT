@@ -23,6 +23,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { toast } from 'sonner';
 
 interface TopNavbarProps {
@@ -31,6 +33,7 @@ interface TopNavbarProps {
 
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { user: admin, logout } = useAuth();
+  const { t } = useLanguage();
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState(['', '', '', '', '', '']);
   const [newPassword, setNewPassword] = useState(['', '', '', '', '', '']);
@@ -161,7 +164,10 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {/* Profile */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -172,23 +178,20 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
                   </span>
                 </div>
                 <span className="hidden md:inline text-sm font-medium">
-                  {admin?.name || 'Admin'}
+                  {admin?.name || t('Admin')}
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
+              <DropdownMenuLabel>{t('Profile')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setIsResetPasswordOpen(true)}>
                 <Key className="w-4 h-4 mr-2" />
-                Reset Password
+                {t('Reset Password')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive">
-                Logout
+                {t('Logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -206,7 +209,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('Notifications')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {notifLogs.length === 0 ? (
                 <p className="px-2 py-4 text-sm text-muted-foreground text-center">No notifications yet</p>
@@ -222,7 +225,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem className="justify-center text-primary" onClick={() => navigate('/admin/notifications')}>
-                View all
+                {t('View all', 'View all')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -235,10 +238,10 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <Lock className="w-6 h-6 text-orange-500" />
-              Reset Password
+              {t('Reset Password')}
             </DialogTitle>
             <DialogDescription>
-              Enter your current password and new 6-digit password
+              {t('Enter your current password and new 6-digit password', 'Enter your current password and new 6-digit password')}
             </DialogDescription>
           </DialogHeader>
 

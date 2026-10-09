@@ -309,7 +309,7 @@ export default function UserManagement() {
         role: createForm.role,
         email: createForm.email || null,
         phone: createForm.phone || null,
-        password: selectedForEdit ? null : (createForm.role === 'student' ? null : '203040'), // Default password only for new admin/faculty
+        password: selectedForEdit ? null : '203040', // Default password for new users
         school_id: createForm.school_id ? Number(createForm.school_id) : null,
         standard: createForm.standard || null,
         section: createForm.section || null,
@@ -666,10 +666,35 @@ export default function UserManagement() {
             </Dialog>
 
             {/* Add User Dialog */}
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+              open={isCreateOpen}
+              onOpenChange={(open) => {
+                setIsCreateOpen(open);
+                if (!open) {
+                  setSelectedForEdit(null);
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4" />
+                <Button
+                  onClick={() => {
+                    setSelectedForEdit(null);
+                    setCreateForm({
+                      userid: '',
+                      name: '',
+                      role: roleFilter === 'admin' ? 'admin' : (roleFilter === 'faculty' ? 'faculty' : 'student'),
+                      email: '',
+                      phone: '',
+                      school_id: schools.length > 0 ? String(schools[0].id) : '',
+                      standard: '',
+                      section: '',
+                      batchYear: new Date().getFullYear().toString(),
+                      examId: examTypes.length > 0 ? String(examTypes[0].id) : '',
+                      status: 'active',
+                    });
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
                   Add User
                 </Button>
               </DialogTrigger>
@@ -714,12 +739,13 @@ export default function UserManagement() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">Full Name <span className="text-destructive">*</span></Label>
                     <Input
                       id="name"
                       placeholder="John Doe"
                       value={createForm.name}
                       onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                      required
                     />
                   </div>
                   <div className="space-y-2">

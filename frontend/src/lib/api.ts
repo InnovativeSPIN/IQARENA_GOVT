@@ -28,20 +28,31 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
       headers,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { message: text || `Server error (${response.status} ${response.statusText})` };
+    }
+
     if (!response.ok) {
-      const err = new Error(data.message || 'API error');
-      // attach original response data for richer error handling
+      const err = new Error(data.message || `API error (${response.status})`);
       // @ts-ignore
       err.data = data;
       throw err;
     }
     return data as T;
   } catch (error: any) {
-    // Normalize network errors to a clearer message
+    // Normalize network / syntax errors to a clear message
     if (error instanceof Error) {
-      const message = /failed to fetch/i.test(error.message) || /network error/i.test(error.message)
-        ? `Network error: Unable to reach API at ${url}`
+      const isNetworkOrJsonError =
+        /failed to fetch/i.test(error.message) ||
+        /network error/i.test(error.message) ||
+        /unexpected end of json/i.test(error.message) ||
+        /unexpected token/i.test(error.message);
+      const message = isNetworkOrJsonError
+        ? `Network error: Unable to connect to server at ${url}`
         : error.message;
       throw new Error(message);
     }

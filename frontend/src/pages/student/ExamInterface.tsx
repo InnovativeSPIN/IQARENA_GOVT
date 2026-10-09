@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { TestQuestion, StudentAnswer } from '@/types/student';
 import { apiFetch } from '@/lib/api';
+import { getBilingualOption } from '@/lib/questionTranslation';
 
 const IMG_URL = import.meta.env.VITE_IMG_API_URL || 'http://localhost:3000';
 
@@ -655,7 +656,7 @@ export default function ExamInterface() {
                 </div>
                 <Separator className="my-3" />
                 <div className="space-y-3">
-                  <div className="space-y-1">
+                  <div className="space-y-1" data-question-content="true">
                     <p className="text-base lg:text-lg leading-relaxed text-gray-800">
                       {currentQuestion.questionText}
                     </p>
@@ -677,7 +678,7 @@ export default function ExamInterface() {
             </Card>
 
             {/* Options */}
-            <div className="space-y-3">
+            <div className="space-y-3" data-question-content="true">
               {(['A', 'B', 'C', 'D'] as const).map((option) => {
                 const optionText = currentQuestion[`option${option}` as keyof TestQuestion] as string;
                 const optionImage = currentQuestion[`option${option}Image` as keyof TestQuestion] as string | null | undefined;
@@ -704,20 +705,24 @@ export default function ExamInterface() {
                     </div>
                     <div className="flex-1">
                       <div className="flex flex-col gap-1">
-                        <span className={cn(
-                          "text-base lg:text-lg block",
-                          isSelected ? "text-gray-900 font-medium" : "text-gray-700"
-                        )}>
-                          {optionText}
-                        </span>
-                        {currentQuestion[`option${option}Ta` as keyof TestQuestion] && (
-                          <span className={cn(
-                            "text-sm block pt-1 border-t",
-                            isSelected ? "text-gray-600 border-orange-200" : "text-gray-500 border-gray-100 group-hover:border-orange-100"
-                          )}>
-                            {currentQuestion[`option${option}Ta` as keyof TestQuestion] as string}
-                          </span>
-                        )}
+                        {(() => {
+                          const optTa = currentQuestion[`option${option}Ta` as keyof TestQuestion] as string | undefined;
+                          const bilingual = getBilingualOption(optionText, optTa);
+                          return (
+                            <span className={cn(
+                              "text-base lg:text-lg block",
+                              isSelected ? "text-gray-900 font-medium" : "text-gray-700"
+                            )}>
+                              <span>{bilingual.en}</span>
+                              {bilingual.hasBoth && (
+                                <>
+                                  <span className="text-muted-foreground/70 mx-1.5 font-normal select-none">/</span>
+                                  <span className="text-emerald-700 font-medium">{bilingual.ta}</span>
+                                </>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </div>
                       {optionImage && (
                         <img

@@ -28,6 +28,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TestAttempt, QuestionReview } from '@/types/student';
 import { cn } from '@/lib/utils';
+import { getBilingualOption, getTamilExplanation } from '@/lib/questionTranslation';
 import { useExams } from '@/lib/useExams';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -652,12 +653,23 @@ export default function StudentResults() {
                                 const key = `option${opt}` as keyof typeof q;
                                 const isCorrect = q.correctAnswer === opt;
                                 const isSelected = q.studentAnswer === opt;
+                                const optText = String(((q as Record<string, unknown>)[key]) || '');
+                                const optTaText = String(((q as Record<string, unknown>)[`${key}Ta`]) || ((q as Record<string, unknown>)[`option_${opt.toLowerCase()}_ta`]) || '');
+                                const bilingual = getBilingualOption(optText, optTaText);
                                 return (
                                   <div key={opt} className={cn('flex items-center gap-3 p-2 rounded', isCorrect ? 'bg-success/10 border border-success' : isSelected && !isCorrect ? 'bg-destructive/10 border border-destructive' : 'bg-card')}> 
-                                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium', isCorrect ? 'bg-success text-success-foreground' : isSelected ? 'bg-destructive text-destructive-foreground' : 'bg-muted')}>{opt}</div>
-                                    <div className="text-sm">{String(((q as Record<string, unknown>)[key]) || '')}</div>
-                                    {isCorrect && <CheckCircle className="h-4 w-4 text-green-600 ml-auto" />}
-                                    {isSelected && !isCorrect && <XCircle className="h-4 w-4 text-red-600 ml-auto" />}
+                                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium shrink-0', isCorrect ? 'bg-success text-success-foreground' : isSelected ? 'bg-destructive text-destructive-foreground' : 'bg-muted')}>{opt}</div>
+                                    <div className="text-sm font-medium">
+                                      <span>{bilingual.en}</span>
+                                      {bilingual.hasBoth && (
+                                        <>
+                                          <span className="text-muted-foreground/70 mx-1.5 font-normal select-none">/</span>
+                                          <span className="text-emerald-700 font-medium">{bilingual.ta}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                    {isCorrect && <CheckCircle className="h-4 w-4 text-green-600 ml-auto shrink-0" />}
+                                    {isSelected && !isCorrect && <XCircle className="h-4 w-4 text-red-600 ml-auto shrink-0" />}
                                   </div>
                                 );
                               })}
@@ -670,9 +682,27 @@ export default function StudentResults() {
                               <strong>Correct Answer:</strong> Option {q.correctAnswer}
                             </div>
 
-                            <div className="mt-2 p-2 rounded bg-accent/20 border border-accent">
-                              <strong className="block mb-1">💡 Explanation</strong>
-                              {q.images?.explanation ? <img src={`${import.meta.env.VITE_IMG_API_URL?.replace(/\/+$/, '')}${q.images.explanation}`} alt="exp" className="max-w-full h-auto rounded" /> : <p className="text-sm text-muted-foreground">{q.explanation || 'No explanation available.'}</p>}
+                            <div className="mt-2 p-3 rounded bg-accent/20 border border-accent space-y-2">
+                              <strong className="block text-sm">💡 Explanation / விளக்கம்</strong>
+                              {q.images?.explanation ? (
+                                <img src={`${import.meta.env.VITE_IMG_API_URL?.replace(/\/+$/, '')}${q.images.explanation}`} alt="exp" className="max-w-full h-auto rounded" />
+                              ) : (
+                                <>
+                                  <p className="text-sm text-foreground/90 leading-relaxed">{q.explanation || 'No explanation available.'}</p>
+                                  {(() => {
+                                    const taExp = getTamilExplanation(q.explanation || '', (q as any).explanationTa);
+                                    if (taExp && taExp !== q.explanation) {
+                                      return (
+                                        <div className="pt-2 border-t border-accent/40 text-xs sm:text-sm text-foreground/80 leading-relaxed">
+                                          <span className="font-semibold block mb-0.5">தமிழ் விளக்கம் (Tamil Explanation):</span>
+                                          <span>{taExp}</span>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </>
+                              )}
                             </div>
 
                           </div>

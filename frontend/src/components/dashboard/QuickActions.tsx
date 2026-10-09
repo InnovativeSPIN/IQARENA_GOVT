@@ -1,5 +1,6 @@
 import { UserPlus, BookPlus, ClipboardPlus, Users, FilePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const actions = [
   {
@@ -41,6 +42,7 @@ const actions = [
 
 export function QuickActions() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -54,8 +56,8 @@ export function QuickActions() {
             <action.icon className="w-5 h-5" />
           </div>
           <div>
-            <p className="font-medium text-foreground">{action.label}</p>
-            <p className="text-xs text-muted-foreground">{action.description}</p>
+            <p className="font-medium text-foreground">{t(action.label)}</p>
+            <p className="text-xs text-muted-foreground">{t(action.description)}</p>
           </div>
         </button>
       ))}

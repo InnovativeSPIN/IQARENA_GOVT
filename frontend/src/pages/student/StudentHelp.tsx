@@ -2,61 +2,62 @@ import { HelpCircle, BookOpen, Calculator, AlertCircle, Phone, Mail, MessageCirc
 import { useState } from 'react';
 import StudentLayout from '@/components/layout/StudentLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-const examRules = [
-  "Read each question carefully before answering.",
-  "Each question carries 4 marks for a correct answer.",
-  "Negative marking: 1 mark will be deducted for each wrong answer.",
-  "No marks will be deducted for unattempted questions.",
-  "Once you submit the exam, you cannot go back or modify answers.",
-  "The timer will auto-submit your exam when time expires.",
-  "Do not refresh the page during the exam.",
-  "Use the 'Mark for Review' feature to revisit questions later.",
-  "Ensure stable internet connection throughout the exam.",
-  "Contact support immediately if you face technical issues.",
-];
-
-const markingScheme = [
-  { type: 'Correct Answer', marks: '+4', color: 'text-success' },
-  { type: 'Wrong Answer', marks: '-1', color: 'text-destructive' },
-  { type: 'Unattempted', marks: '0', color: 'text-muted-foreground' },
-];
-
-const troubleshooting = [
-  {
-    question: "What should I do if my exam gets stuck?",
-    answer: "Try refreshing the page. Your progress is auto-saved. If the issue persists, contact support immediately with your test ID.",
-  },
-  {
-    question: "My timer stopped working. What should I do?",
-    answer: "Refresh the page immediately. The server keeps track of actual time, so don't worry about losing time.",
-  },
-  {
-    question: "I accidentally closed the browser during exam.",
-    answer: "Open the exam link again and log in. You can continue from where you left off if time permits.",
-  },
-  {
-    question: "I can't see the Submit button.",
-    answer: "Navigate to the last question using Next button. The Submit button appears on the last question page.",
-  },
-  {
-    question: "My answer didn't save.",
-    answer: "Answers are auto-saved when you select an option. If you see issues, try selecting the option again.",
-  },
-];
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function StudentHelp() {
+  const { t } = useLanguage();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+  const examRules = [
+    t("Read each question carefully before answering.", "Read each question carefully before answering."),
+    t("Each question carries 4 marks for a correct answer.", "Each question carries 4 marks for a correct answer."),
+    t("Negative marking: 1 mark will be deducted for each wrong answer.", "Negative marking: 1 mark will be deducted for each wrong answer."),
+    t("No marks will be deducted for unattempted questions.", "No marks will be deducted for unattempted questions."),
+    t("Once you submit the exam, you cannot go back or modify answers.", "Once you submit the exam, you cannot go back or modify answers."),
+    t("The timer will auto-submit your exam when time expires.", "The timer will auto-submit your exam when time expires."),
+    t("Do not refresh the page during the exam.", "Do not refresh the page during the exam."),
+    t("Use the 'Mark for Review' feature to revisit questions later.", "Use the 'Mark for Review' feature to revisit questions later."),
+    t("Ensure stable internet connection throughout the exam.", "Ensure stable internet connection throughout the exam."),
+    t("Contact support immediately if you face technical issues.", "Contact support immediately if you face technical issues."),
+  ];
+
+  const markingScheme = [
+    { type: t('Correct Answer', 'Correct Answer'), marks: '+4', color: 'text-success' },
+    { type: t('Wrong Answer', 'Wrong Answer'), marks: '-1', color: 'text-destructive' },
+    { type: t('Unattempted', 'Unattempted'), marks: '0', color: 'text-muted-foreground' },
+  ];
+
+  const troubleshooting = [
+    {
+      question: t("What should I do if my exam gets stuck?", "What should I do if my exam gets stuck?"),
+      answer: t("Try refreshing the page. Your progress is auto-saved. If the issue persists, contact support immediately with your test ID.", "Try refreshing the page. Your progress is auto-saved. If the issue persists, contact support immediately with your test ID."),
+    },
+    {
+      question: t("My timer stopped working. What should I do?", "My timer stopped working. What should I do?"),
+      answer: t("Refresh the page immediately. The server keeps track of actual time, so don't worry about losing time.", "Refresh the page immediately. The server keeps track of actual time, so don't worry about losing time."),
+    },
+    {
+      question: t("I accidentally closed the browser during exam.", "I accidentally closed the browser during exam."),
+      answer: t("Open the exam link again and log in. You can continue from where you left off if time permits.", "Open the exam link again and log in. You can continue from where you left off if time permits."),
+    },
+    {
+      question: t("I can't see the Submit button.", "I can't see the Submit button."),
+      answer: t("Navigate to the last question using Next button. The Submit button appears on the last question page.", "Navigate to the last question using Next button. The Submit button appears on the last question page."),
+    },
+    {
+      question: t("My answer didn't save.", "My answer didn't save."),
+      answer: t("Answers are auto-saved when you select an option. If you see issues, try selecting the option again.", "Answers are auto-saved when you select an option. If you see issues, try selecting the option again."),
+    },
+  ];
 
   return (
     <StudentLayout>
       <div className="p-4 md:p-6 pb-24 lg:pb-6 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Help & Instructions</h1>
-          <p className="text-muted-foreground mt-1">Everything you need to know about exams</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('Help & Instructions', 'Help & Instructions')}</h1>
+          <p className="text-muted-foreground mt-1">{t('Everything you need to know about exams', 'Everything you need to know about exams')}</p>
         </div>
 
         {/* Exam Rules */}
@@ -64,7 +65,7 @@ export default function StudentHelp() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" />
-              Exam Rules & Guidelines
+              {t('Exam Rules & Guidelines', 'Exam Rules & Guidelines')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -86,7 +87,7 @@ export default function StudentHelp() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Calculator className="h-5 w-5 text-primary" />
-              Marking Scheme
+              {t('Marking Scheme', 'Marking Scheme')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -104,7 +105,7 @@ export default function StudentHelp() {
             <div className="mt-4 p-3 sm:p-4 rounded-xl bg-warning/10 border border-warning/30">
               <p className="text-xs sm:text-sm text-warning flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                Negative marking applies. Attempt only if you are confident about the answer.
+                {t('Negative marking applies. Attempt only if you are confident about the answer.', 'Negative marking applies. Attempt only if you are confident about the answer.')}
               </p>
             </div>
           </CardContent>
@@ -115,7 +116,7 @@ export default function StudentHelp() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <HelpCircle className="h-5 w-5 text-primary" />
-              Common Issues & Solutions
+              {t('Common Issues & Solutions', 'Common Issues & Solutions')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -152,12 +153,12 @@ export default function StudentHelp() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              Contact Support
+              {t('Contact Support', 'Contact Support')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Need help? Our support team is available 24/7 during exam hours.
+              {t('Need help? Our support team is available 24/7 during exam hours.', 'Need help? Our support team is available 24/7 during exam hours.')}
             </p>
             
             <div className="grid gap-3 sm:grid-cols-2">
@@ -169,7 +170,7 @@ export default function StudentHelp() {
                   <Phone className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Call Us</p>
+                  <p className="text-sm text-muted-foreground">{t('Call Us', 'Call Us')}</p>
                   <p className="font-medium text-foreground">+91 123 456 7890</p>
                 </div>
               </a>
@@ -182,7 +183,7 @@ export default function StudentHelp() {
                   <Mail className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Email Us</p>
+                  <p className="text-sm text-muted-foreground">{t('Email Us', 'Email Us')}</p>
                   <p className="font-medium text-foreground">support@examprep.com</p>
                 </div>
               </a>

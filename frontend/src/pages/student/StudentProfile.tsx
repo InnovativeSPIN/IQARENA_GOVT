@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface StudentProfile {
   id: string;
@@ -24,6 +25,7 @@ interface StudentProfile {
 export default function StudentProfile() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -237,8 +239,8 @@ export default function StudentProfile() {
       <div className="p-4 md:p-6 pb-24 lg:pb-6 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-          <p className="text-muted-foreground mt-1">View and manage your account</p>
+          <h1 className="text-2xl font-bold text-foreground">{t('My Profile', 'என் சுயவிவரம்')}</h1>
+          <p className="text-muted-foreground mt-1">{t('View and manage your account', 'உங்கள் கணக்கைப் பார்த்து நிர்வகிக்கவும்')}</p>
         </div>
 
         {/* Profile Card */}
@@ -251,7 +253,7 @@ export default function StudentProfile() {
               <div className="text-center sm:text-left">
                 <h2 className="text-xl sm:text-2xl font-bold">{profile?.name}</h2>
                 <Badge variant="secondary" className="mt-2 bg-primary-foreground/20 text-primary-foreground border-0">
-                  {profile?.role}
+                  {t(profile?.role || 'Student', 'மாணவர்')}
                 </Badge>
               </div>
             </div>
@@ -264,7 +266,7 @@ export default function StudentProfile() {
                 <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">User ID</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('User ID', 'பயனர் ஐடி')}</p>
                 <p className="font-medium text-sm sm:text-base text-foreground">{profile?.userId}</p>
               </div>
             </div>
@@ -275,7 +277,7 @@ export default function StudentProfile() {
                 <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Phone Number</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('Phone Number', 'தொலைபேசி எண்')}</p>
                 <p className="font-medium text-sm sm:text-base text-foreground">{profile?.phone}</p>
               </div>
             </div>
@@ -284,7 +286,7 @@ export default function StudentProfile() {
                 <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground">Email Id</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{t('Email Address', 'மின்னஞ்சல் முகவரி')}</p>
                 <p className="font-medium text-sm sm:text-base text-foreground">{profile?.email}</p>
               </div>
             </div>
@@ -295,7 +297,7 @@ export default function StudentProfile() {
             <CardContent>
               <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-muted/50">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground">Batch</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{t('Batch', 'தொகுதி')}</p>
                   <p className="font-medium text-sm sm:text-base text-foreground">{profile.batch}</p>
                 </div>
               </div>
@@ -308,7 +310,7 @@ export default function StudentProfile() {
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Lock className="h-5 w-5" />
-              Password & Security
+              {t('Password & Security', 'கடவுச்சொல் & பாதுகாப்பு')}
             </CardTitle>
             {!showChangePassword && (
               <Button 
@@ -316,7 +318,7 @@ export default function StudentProfile() {
                 size="sm" 
                 onClick={() => setShowChangePassword(true)}
               >
-                Change Password
+                {t('Change Password', 'கடவுச்சொல்லை மாற்று')}
               </Button>
             )}
           </CardHeader>

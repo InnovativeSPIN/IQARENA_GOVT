@@ -50,6 +50,7 @@ import { Question, Subject, Topic } from '@/types/admin';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { getUploadUrl } from '@/lib/utils';
+import { getBilingualOption, getTamilExplanation } from '@/lib/questionTranslation';
 
 declare global {
   interface Window {
@@ -1113,23 +1114,27 @@ export default function QuestionManagement() {
     const localImg = includeLocalPreview ? (localPreviews[localKey] || '') : '';
     
     const hasImage = image && image.trim() !== '';
-    const hasText = text && text.trim() !== '';
-    const hasTextTa = textTa && textTa.trim() !== '' && textTa.trim() !== text.trim();
+    const bilingual = getBilingualOption(text, textTa);
+    const hasText = Boolean(bilingual.en || bilingual.ta);
     
     return (
       <div className="space-y-2">
         {hasImage && <ImageWithFallback src={image} localSrc={localImg} alt={`Option ${opt}`} className="max-w-xs rounded shadow-sm border" clickToZoom={true} />}
         {hasText && (
-          <div className="font-medium text-foreground">
-            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(text) }} />
+          <div className="font-medium text-foreground leading-snug">
+            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(bilingual.en) }} />
+            {bilingual.hasBoth && (
+              <>
+                <span className="text-muted-foreground/70 mx-1.5 font-normal select-none">/</span>
+                <span
+                  className="text-emerald-700 dark:text-emerald-400 font-medium"
+                  dangerouslySetInnerHTML={{ __html: renderMathSafe(bilingual.ta) }}
+                />
+              </>
+            )}
           </div>
         )}
-        {hasTextTa && (
-          <div className="text-muted-foreground mt-1 text-sm border-t border-border/50 pt-1">
-            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(textTa) }} />
-          </div>
-        )}
-        {(!hasImage && !hasText && !hasTextTa) && <span className="text-muted-foreground italic text-sm">No content</span>}
+        {(!hasImage && !hasText) && <span className="text-muted-foreground italic text-sm">No content</span>}
       </div>
     );
   };
@@ -2016,7 +2021,7 @@ export default function QuestionManagement() {
                     </div>
                     
                     {/* Question Text - Always Visible */}
-                    <div className="text-foreground font-medium mb-3">
+                    <div className="text-foreground font-medium mb-3" data-question-content="true">
                       <span className="inline-block sm:inline mr-2 font-semibold">Q{index + 1}.</span>
                       <div className="flex flex-col gap-1">
                         <span className="block break-all md:break-words leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: renderMathSafe(question.text) }} />
@@ -2027,7 +2032,7 @@ export default function QuestionManagement() {
                     </div>
 
                     {/* Correct Answer Preview - Always Visible */}
-                    <div className="mb-3">
+                    <div className="mb-3" data-question-content="true">
                       <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950/30">
                         <span className="min-w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-green-500 text-white">
                           {question.correctAnswer}
@@ -2116,14 +2121,30 @@ export default function QuestionManagement() {
                         </div>
 
                         {/* Explanation */}
-                        {question.explanation && (
-                          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                            <p className="text-sm font-semibold mb-2 text-blue-900 dark:text-blue-400">💡 Explanation:</p>
-                            <p className="text-sm text-blue-800 dark:text-blue-300">
-                              <span dangerouslySetInnerHTML={{ __html: renderMathSafe(question.explanation) }} />
-                            </p>
-                          </div>
-                        )}
+                        {question.explanation && (() => {
+                          const taExp = getTamilExplanation(question.explanation, question.explanationTa);
+                          return (
+                            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 space-y-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">💡</span>
+                                <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                                  Explanation / விளக்கம்:
+                                </p>
+                              </div>
+                              <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed font-normal">
+                                <span dangerouslySetInnerHTML={{ __html: renderMathSafe(question.explanation) }} />
+                              </p>
+                              {taExp && (
+                                <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60 text-sm text-blue-950 dark:text-blue-200 leading-relaxed font-medium">
+                                  <span className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block mb-0.5">
+                                    தமிழ் விளக்கம் (Tamil Explanation):
+                                  </span>
+                                  <span dangerouslySetInnerHTML={{ __html: renderMathSafe(taExp) }} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                     
@@ -2337,13 +2358,24 @@ export default function QuestionManagement() {
                         />
                       </div>
                     )}
-                    {selectedQuestion.explanation && (
-                      <div className="ml-10">
-                        <p className="text-sm leading-relaxed text-blue-900 dark:text-blue-300">
-                          <span dangerouslySetInnerHTML={{ __html: renderMathSafe(selectedQuestion.explanation) }} />
-                        </p>
-                      </div>
-                    )}
+                    {selectedQuestion.explanation && (() => {
+                      const taExp = getTamilExplanation(selectedQuestion.explanation, selectedQuestion.explanationTa);
+                      return (
+                        <div className="ml-10 space-y-2">
+                          <p className="text-sm leading-relaxed text-blue-900 dark:text-blue-300">
+                            <span dangerouslySetInnerHTML={{ __html: renderMathSafe(selectedQuestion.explanation) }} />
+                          </p>
+                          {taExp && (
+                            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60 text-sm leading-relaxed text-blue-950 dark:text-blue-200 font-medium">
+                              <span className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block mb-0.5">
+                                தமிழ் விளக்கம் (Tamil Explanation):
+                              </span>
+                              <span dangerouslySetInnerHTML={{ __html: renderMathSafe(taExp) }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 

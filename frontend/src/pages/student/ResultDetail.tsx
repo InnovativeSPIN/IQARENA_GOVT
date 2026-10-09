@@ -9,15 +9,20 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { SubjectWiseResult, TestAttempt } from '@/types/student';
+import { getBilingualOption, getTamilExplanation } from '@/lib/questionTranslation';
 
   type ServerQuestion = {
     questionTextTa?: string | null;
     id: number | string;
     questionText: string;
     optionA?: string | null;
+    optionATa?: string | null;
     optionB?: string | null;
+    optionBTa?: string | null;
     optionC?: string | null;
+    optionCTa?: string | null;
     optionD?: string | null;
+    optionDTa?: string | null;
     correctAnswer?: string | null;
     studentAnswer?: string | null;
     isCorrect?: boolean;
@@ -30,6 +35,7 @@ import { SubjectWiseResult, TestAttempt } from '@/types/student';
       explanation?: string | null;
     } | null;
     explanation?: string | null;
+    explanationTa?: string | null;
     marks?: number | null;
     isMarkedForReview?: boolean;
     subject?: string | null;
@@ -490,16 +496,21 @@ export default function ResultDetail() {
                                       alt={`Option ${opt}`} 
                                       className="max-w-[200px] h-auto rounded"
                                     />
-                                  ) : (
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-sm">{optionText}</span>
-                                      {question[`option${opt}Ta` as keyof typeof question] && (
-                                        <span className="text-sm text-muted-foreground border-t border-border/50 pt-1 mt-1">
-                                          {String(question[`option${opt}Ta` as keyof typeof question])}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
+                                  ) : (() => {
+                                    const optTa = question[`option${opt}Ta` as keyof typeof question] || (question as any)[`option_${opt.toLowerCase()}_ta`];
+                                    const bilingual = getBilingualOption(optionText, optTa ? String(optTa) : undefined);
+                                    return (
+                                      <div className="text-sm font-medium">
+                                        <span>{bilingual.en}</span>
+                                        {bilingual.hasBoth && (
+                                          <>
+                                            <span className="text-muted-foreground/70 mx-1.5 font-normal select-none">/</span>
+                                            <span className="text-emerald-700 font-medium">{bilingual.ta}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                   <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 shrink-0">
                                     {isSelected && (
                                       <span className={cn(
@@ -550,7 +561,18 @@ export default function ResultDetail() {
                                 <Badge variant="outline" className="bg-success/10 text-success border-success">
                                   Option {question.correctAnswer}
                                 </Badge>
-                                <span className="text-sm text-muted-foreground">{String(question[`option${question.correctAnswer}` as keyof typeof question] || '')}</span>
+                                {(() => {
+                                  const ansOpt = question.correctAnswer;
+                                  if (!ansOpt) return null;
+                                  const en = String(question[`option${ansOpt}` as keyof typeof question] || '');
+                                  const ta = String(question[`option${ansOpt}Ta` as keyof typeof question] || '');
+                                  const bilingual = getBilingualOption(en, ta);
+                                  return (
+                                    <span className="text-sm text-muted-foreground">
+                                      {bilingual.hasBoth ? `${bilingual.en} / ${bilingual.ta}` : (bilingual.en || '')}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             </div>
 
@@ -561,9 +583,9 @@ export default function ResultDetail() {
                           </div>
 
                           {/* Explanation */}
-                          <div className="p-4 rounded-lg bg-accent/50 border border-accent">
-                            <h5 className="font-medium text-accent-foreground mb-2">
-                              💡 Explanation
+                          <div className="p-4 rounded-lg bg-accent/50 border border-accent space-y-2">
+                            <h5 className="font-medium text-accent-foreground flex items-center gap-1.5">
+                              <span>💡 Explanation / விளக்கம்</span>
                             </h5>
                             {question.images?.explanation ? (
                               <img 
@@ -572,7 +594,21 @@ export default function ResultDetail() {
                                 className="max-w-full h-auto rounded"
                               />
                             ) : (
-                              <p className="text-sm text-muted-foreground">{question.explanation || 'No explanation available.'}</p>
+                              <>
+                                <p className="text-sm text-foreground/90 leading-relaxed">{question.explanation || 'No explanation available.'}</p>
+                                {(() => {
+                                  const taExp = getTamilExplanation(question.explanation || '', question.explanationTa);
+                                  if (taExp && taExp !== question.explanation) {
+                                    return (
+                                      <div className="pt-2 border-t border-accent/40 text-xs sm:text-sm text-foreground/80 leading-relaxed">
+                                        <span className="font-semibold block mb-0.5">தமிழ் விளக்கம் (Tamil Explanation):</span>
+                                        <span>{taExp}</span>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </>
                             )}
                           </div>
                         </div>
