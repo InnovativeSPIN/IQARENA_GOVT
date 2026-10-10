@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Clock, 
-  Play, 
-  CheckCircle, 
-  Loader2, 
-  AlertCircle, 
-  Filter, 
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  Clock,
+  Play,
+  CheckCircle,
+  Loader2,
+  AlertCircle,
+  Filter,
   Search,
   Plus,
   Atom,
@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useExams } from '@/lib/useExams';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -54,7 +54,12 @@ const SUBJECTS_BY_EXAM = {
   ],
 };
 
-const getSubjectsForExam = (examType: 'NEET' | 'JEE') => SUBJECTS_BY_EXAM[examType] || [];
+const getSubjectsForExam = (examType?: string) => {
+  if (examType === 'NEET' || examType === 'JEE') {
+    return SUBJECTS_BY_EXAM[examType];
+  }
+  return [];
+};
 
 // Simple date formatter used for availability display: DD/MM/YYYY, HH:mm:ss
 const formatSimpleDate = (input?: string | null | Date) => {
@@ -91,8 +96,9 @@ const getStatusBadge = (status: AssignedTest['status']) => {
 
 export default function AssignedTests() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [examFilter, setExamFilter] = useState<string>('all');
+  const [examFilter, setExamFilter] = useState<string>(location.state?.examType || 'all');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('all');
@@ -107,7 +113,7 @@ export default function AssignedTests() {
     completedTests: 0,
     inProgressTests: 0
   });
-  
+
   // Custom test configuration
   const [customTest, setCustomTest] = useState({
     examType: '' as string,
@@ -119,6 +125,13 @@ export default function AssignedTests() {
 
   const { exams } = useExams();
 
+
+  // Sync exam filter from navigation state
+  useEffect(() => {
+    if (location.state?.examType) {
+      setExamFilter(location.state.examType);
+    }
+  }, [location.state?.examType]);
 
   // Fetch assigned tests
   useEffect(() => {
@@ -140,7 +153,7 @@ export default function AssignedTests() {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/student/assigned-tests`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      
+
       if (response.data.success) {
         setTests(response.data.data.tests);
         setRecentTests(response.data.data.recentTests || []);
@@ -163,7 +176,7 @@ export default function AssignedTests() {
   const filteredTests = tests.filter((test) => {
     const matchesSearch = test.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesExam = examFilter === 'all' || test.examType === examFilter;
-    const matchesSubject = subjectFilter === 'all' || test.subjects.some(subject => 
+    const matchesSubject = subjectFilter === 'all' || test.subjects.some(subject =>
       subject.toLowerCase() === subjectFilter.toLowerCase()
     );
     const matchesStatus = statusFilter === 'all' || (
@@ -173,12 +186,12 @@ export default function AssignedTests() {
         )
       )
     );
-    
+
     if (activeTab === 'all') return matchesSearch && matchesExam && matchesSubject && matchesStatus;
     if (activeTab === 'available') return matchesSearch && matchesExam && matchesSubject && matchesStatus && test.isActive && test.status !== 'submitted';
     if (activeTab === 'completed') return matchesSearch && matchesExam && matchesSubject && matchesStatus && test.status === 'submitted';
     if (activeTab === 'upcoming') return matchesSearch && matchesExam && matchesSubject && matchesStatus && test.status === 'upcoming';
-    
+
     return matchesSearch && matchesExam && matchesSubject;
   });
 
@@ -201,13 +214,13 @@ export default function AssignedTests() {
       });
     }
     // Default (all): show most recent tests first. Use attempt submission time if available, otherwise startTime.
-      // Show the newest tests by creation time. Limit to the most recent 10 tests.
-      const LAST_COUNT = 10;
-      return filteredTests.slice().sort((a, b) => {
-        const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return cb - ca;
-      }).slice(0, LAST_COUNT);
+    // Show the newest tests by creation time. Limit to the most recent 10 tests.
+    const LAST_COUNT = 10;
+    return filteredTests.slice().sort((a, b) => {
+      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return cb - ca;
+    }).slice(0, LAST_COUNT);
   })();
 
   const handleSubjectToggle = (subjectId: string) => {
@@ -225,7 +238,7 @@ export default function AssignedTests() {
       return;
     }
 
-    const subjectNames = customTest.subjects.map(id => 
+    const subjectNames = customTest.subjects.map(id =>
       getSubjectsForExam(customTest.examType).find(s => s.id === id)?.name
     ).filter(Boolean);
 
@@ -234,7 +247,7 @@ export default function AssignedTests() {
     });
 
     setIsCreateTestOpen(false);
-    
+
     // Navigate to exam interface with custom test
     navigate(`/student/exam/custom-${Date.now()}`);
   };
@@ -305,7 +318,7 @@ export default function AssignedTests() {
                 ))}
             </SelectContent>
           </Select>
-        
+
         </div>
 
         {/* Tabs */}
@@ -454,7 +467,7 @@ export default function AssignedTests() {
                 ))}
               </div>
             )}
-            
+
           </TabsContent>
         </Tabs>
 
@@ -489,10 +502,10 @@ export default function AssignedTests() {
                           : "border-gray-200 hover:border-orange-300"
                       )}
                       onClick={() => setCustomTest(prev => {
-                          const newExam = type as 'NEET' | 'JEE';
-                          const allowed = getSubjectsForExam(newExam).map(s => s.id);
-                          return { ...prev, examType: newExam, subjects: prev.subjects.filter(sid => allowed.includes(sid)) };
-                        })}
+                        const newExam = type as 'NEET' | 'JEE';
+                        const allowed = getSubjectsForExam(newExam).map(s => s.id);
+                        return { ...prev, examType: newExam, subjects: prev.subjects.filter(sid => allowed.includes(sid)) };
+                      })}
                     >
                       <CardContent className="p-4 text-center">
                         <p className={cn(
@@ -514,7 +527,7 @@ export default function AssignedTests() {
                   {getSubjectsForExam(customTest.examType).map((subject) => {
                     const SubjectIcon = subject.icon;
                     const isSelected = customTest.subjects.includes(subject.id);
-                    
+
                     return (
                       <Card
                         key={subject.id}
@@ -537,7 +550,7 @@ export default function AssignedTests() {
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900">{subject.name}</p>
                             </div>
-                            <Checkbox 
+                            <Checkbox
                               checked={isSelected}
                               className="pointer-events-none"
                             />
@@ -557,8 +570,8 @@ export default function AssignedTests() {
               {/* Difficulty Level */}
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Difficulty Level</Label>
-                <Select 
-                  value={customTest.difficulty} 
+                <Select
+                  value={customTest.difficulty}
                   onValueChange={(value) => setCustomTest({ ...customTest, difficulty: value })}
                 >
                   <SelectTrigger>
@@ -628,7 +641,7 @@ export default function AssignedTests() {
                   <h4 className="font-semibold text-orange-900 mb-2">Test Summary</h4>
                   <div className="space-y-1 text-sm text-orange-800">
                     <p><span className="font-medium">Exam:</span> {customTest.examType}</p>
-                    <p><span className="font-medium">Subjects:</span> {customTest.subjects.length > 0 
+                    <p><span className="font-medium">Subjects:</span> {customTest.subjects.length > 0
                       ? customTest.subjects.map(id => getSubjectsForExam(customTest.examType).find(s => s.id === id)?.name).join(', ')
                       : 'None selected'
                     }</p>
@@ -641,13 +654,13 @@ export default function AssignedTests() {
             </div>
 
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsCreateTestOpen(false)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateCustomTest}
                 disabled={customTest.subjects.length === 0}
                 className="gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"

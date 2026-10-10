@@ -6,7 +6,11 @@ import {
   Target,
   Lock,
   ChevronRight,
-  Clock
+  Clock,
+  BookOpen,
+  GraduationCap,
+  Award,
+  FileText
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -256,6 +260,7 @@ export default function StudentDashboard() {
   const [upcomingTests, setUpcomingTests] = useState<UpcomingTest[]>([]);
   const [recentTests, setRecentTests] = useState<RecentTest[]>([]);
   const [allResults, setAllResults] = useState<FullAttemptResult[]>([]);
+  const [assignedTests, setAssignedTests] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [graphFilter, setGraphFilter] = useState<'last5' | 'all'>('last5');
   const [speechBubbleVisible, setSpeechBubbleVisible] = useState(true);
@@ -266,9 +271,10 @@ export default function StudentDashboard() {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        const [statsRes, resultsRes] = await Promise.allSettled([
+        const [statsRes, resultsRes, testsRes] = await Promise.allSettled([
           apiFetch('/admin/dashboard/student/stats'),
-          apiFetch('/student/results')
+          apiFetch('/student/results'),
+          apiFetch('/student/assigned-tests')
         ]);
 
         if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
@@ -299,6 +305,11 @@ export default function StudentDashboard() {
           const resList = resultsRes.value.data?.results || [];
           setAllResults(resList);
         }
+
+        if (testsRes.status === 'fulfilled' && testsRes.value?.success) {
+          const testsList = testsRes.value.data?.tests || [];
+          setAssignedTests(testsList);
+        }
       } catch (err) {
         console.error('Error loading student dashboard stats:', err);
       } finally {
@@ -308,6 +319,17 @@ export default function StudentDashboard() {
 
     fetchDashboard();
   }, []);
+
+  // ── Available Exams Counts ───────────────────────────────────────────────────
+  const nmmsCount = useMemo(() => {
+    if (assignedTests === null) return 1;
+    return assignedTests.filter((t: any) => t.examType === 'NMMS').length;
+  }, [assignedTests]);
+
+  const trustCount = useMemo(() => {
+    if (assignedTests === null) return 0;
+    return assignedTests.filter((t: any) => t.examType === 'TRUST').length;
+  }, [assignedTests]);
 
   // ── Derived Data ─────────────────────────────────────────────────────────────
 
@@ -894,6 +916,83 @@ export default function StudentDashboard() {
               </div>
             </div>
           )}
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════
+            SECTION 1.5 · AVAILABLE EXAMS
+        ══════════════════════════════════════════════════════════════ */}
+        <section
+          className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+          aria-label="Available Exams"
+        >
+          {/* Left Title & Icon */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+              <BookOpen className="w-5 h-5 stroke-[1.8]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">
+                  Available Exams
+                </h2>
+                <span className="px-2.5 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded-full">
+                  Govt. Scholarship
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Select an exam to start practice tests
+              </p>
+            </div>
+          </div>
+
+          {/* Right Exam Cards */}
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+            {/* NMMS Exam Card */}
+            <button
+              type="button"
+              onClick={() => navigate('/student/tests', { state: { examType: 'NMMS' } })}
+              className="group flex items-center gap-3 bg-[#1d63ed] hover:bg-[#1553cb] active:scale-[0.98] text-white px-4 py-2.5 rounded-xl shadow-sm transition-all text-left min-w-[195px] cursor-pointer"
+            >
+              <GraduationCap className="w-5 h-5 text-white shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-white leading-tight">
+                    NMMS Exam
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-[#1746b8] text-[10px] font-medium rounded text-white leading-none">
+                    Class 8
+                  </span>
+                </div>
+                <p className="text-[11px] text-blue-100 mt-0.5 font-normal leading-tight">
+                  {nmmsCount} {nmmsCount === 1 ? 'Test' : 'Tests'} Available
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-blue-200 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1" />
+            </button>
+
+            {/* TRUST Exam Card */}
+            <button
+              type="button"
+              onClick={() => navigate('/student/tests', { state: { examType: 'TRUST' } })}
+              className="group flex items-center gap-3 bg-[#d97706] hover:bg-[#b45309] active:scale-[0.98] text-white px-4 py-2.5 rounded-xl shadow-sm transition-all text-left min-w-[195px] cursor-pointer"
+            >
+              <Award className="w-5 h-5 text-white shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-white leading-tight">
+                    TRUST Exam
+                  </span>
+                  <span className="px-1.5 py-0.5 bg-[#92400e] text-[10px] font-medium rounded text-white leading-none">
+                    Class 9
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-100 mt-0.5 font-normal leading-tight">
+                  {trustCount} {trustCount === 1 ? 'Test' : 'Tests'} Available
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-amber-200 group-hover:translate-x-0.5 transition-transform shrink-0 ml-1" />
+            </button>
+          </div>
         </section>
 
         {/* ══════════════════════════════════════════════════════════════

@@ -75,6 +75,7 @@ type ApiUser = {
   phone?: string;
   email?: string;
   role?: string;
+  status?: string;
   school_id?: number | null;
   school_name?: string | null;
   standard?: string | null;
@@ -115,7 +116,7 @@ export default function UserManagement() {
   const [schoolFilter, setSchoolFilter] = useState<'all' | string>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  
+
   const [schools, setSchools] = useState<any[]>([]);
   const [examTypes, setExamTypes] = useState<any[]>([]);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
@@ -268,28 +269,28 @@ export default function UserManagement() {
   // Create / Edit user handler
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate required fields
     if (!createForm.name.trim()) {
       alert('Name is required');
       return;
     }
-    
+
     if (!createForm.userid.trim()) {
       alert('User ID is required');
       return;
     }
-    
+
     // Check for duplicate User ID
     const duplicateUser = users.find(
       (u) => u.userid === createForm.userid && (!selectedForEdit || u.id !== selectedForEdit.id)
     );
-    
+
     if (duplicateUser) {
       alert(`User ID "${createForm.userid}" is already taken by ${duplicateUser.name}. Please use a different User ID.`);
       return;
     }
-    
+
     // Validate student
     if (createForm.role === 'student' && (!createForm.school_id || !createForm.standard || !createForm.batchYear || !createForm.examId)) {
       alert('School, Class, Batch Year, and Exam are required for students');
@@ -300,7 +301,7 @@ export default function UserManagement() {
       alert('School is required for Faculty');
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       const body = {
@@ -405,20 +406,20 @@ export default function UserManagement() {
           alert('Error parsing CSV file');
           return;
         }
-        
+
         let processedData = results.data;
         if (bulkUploadTab === 'student') {
-           const school = schools.find(s => String(s.id) === bulkForm.school_id);
-           processedData = results.data.map((row: any) => ({
-             ...row,
-             emis_no: row.emis_no || row.EMIS || row.emis || '',
-             student_name: row.student_name || row.name || row.Name || '',
-             school_name: school ? school.school_name : '',
-             class: bulkForm.standard,
-             phone: row.phone || ''
-           }));
+          const school = schools.find(s => String(s.id) === bulkForm.school_id);
+          processedData = results.data.map((row: any) => ({
+            ...row,
+            emis_no: row.emis_no || row.EMIS || row.emis || '',
+            student_name: row.student_name || row.name || row.Name || '',
+            school_name: school ? school.school_name : '',
+            class: bulkForm.standard,
+            phone: row.phone || ''
+          }));
         }
-        
+
         setBulkPreviewData(processedData);
         setIsBulkUploadOpen(false);
         setIsPreviewOpen(true);
@@ -436,16 +437,16 @@ export default function UserManagement() {
 
       const form = new FormData();
       form.append('file', newFile);
-      
+
       if (bulkUploadTab === 'student') {
         form.append('standard', bulkForm.standard);
         if (bulkForm.section) form.append('section', bulkForm.section);
         form.append('batch_year', bulkForm.batch_year);
         form.append('exam_id', bulkForm.exam_id);
       }
-      
+
       const token = localStorage.getItem('token');
-      const endpoint = bulkUploadTab === 'student' 
+      const endpoint = bulkUploadTab === 'student'
         ? `/api/admin/schools/${bulkForm.school_id}/students/import`
         : `/api/admin/users/import-faculty`;
 
@@ -511,31 +512,31 @@ export default function UserManagement() {
                   <DialogDescription asChild>
                     <div className="mt-2 text-sm text-muted-foreground">
                       <div className="flex gap-2 mb-4">
-                        <Button 
+                        <Button
                           type="button"
-                          variant={bulkUploadTab === 'student' ? 'default' : 'outline'} 
-                          size="sm" 
+                          variant={bulkUploadTab === 'student' ? 'default' : 'outline'}
+                          size="sm"
                           onClick={() => setBulkUploadTab('student')}
                           className="rounded-full px-6"
                         >
                           Students
                         </Button>
-                        <Button 
+                        <Button
                           type="button"
-                          variant={bulkUploadTab === 'faculty' ? 'default' : 'outline'} 
-                          size="sm" 
+                          variant={bulkUploadTab === 'faculty' ? 'default' : 'outline'}
+                          size="sm"
                           onClick={() => setBulkUploadTab('faculty')}
                           className="rounded-full px-6"
                         >
                           Faculty
                         </Button>
                       </div>
-                      
+
                       {bulkUploadTab === 'student' ? (
                         <>
                           Upload a CSV file to add multiple students at once. <br />
-                          <a 
-                            href="data:text/csv;charset=utf-8,emis_no,student_name,phone,section\n" 
+                          <a
+                            href="data:text/csv;charset=utf-8,emis_no,student_name,phone,section\n"
                             download="student_template.csv"
                             className="text-primary underline hover:text-primary/80 mt-1 inline-block"
                           >
@@ -545,8 +546,8 @@ export default function UserManagement() {
                       ) : (
                         <>
                           Upload a CSV file to add multiple faculty members to a school. <br />
-                          <a 
-                            href="data:text/csv;charset=utf-8,udise_code,faculty_name,phone,email\n" 
+                          <a
+                            href="data:text/csv;charset=utf-8,udise_code,faculty_name,phone,email\n"
                             download="faculty_template.csv"
                             className="text-primary underline hover:text-primary/80 mt-1 inline-block"
                           >
@@ -636,8 +637,8 @@ export default function UserManagement() {
                         <tr key={i} className="border-b hover:bg-muted/50 transition-colors">
                           {Object.keys(row).map((key) => (
                             <td key={key} className="px-4 py-2">
-                              <Input 
-                                value={row[key]} 
+                              <Input
+                                value={row[key]}
                                 onChange={(e) => {
                                   const newData = [...bulkPreviewData];
                                   newData[i][key] = e.target.value;
@@ -699,216 +700,216 @@ export default function UserManagement() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{selectedForEdit ? 'Edit User' : 'Create New User'}</DialogTitle>
-                <DialogDescription>
-                  {selectedForEdit ? 'Update user details' : 'Add a new user to the system'}
-                </DialogDescription>
-              </DialogHeader>
+                <DialogHeader>
+                  <DialogTitle>{selectedForEdit ? 'Edit User' : 'Create New User'}</DialogTitle>
+                  <DialogDescription>
+                    {selectedForEdit ? 'Update user details' : 'Add a new user to the system'}
+                  </DialogDescription>
+                </DialogHeader>
 
-              <form className="space-y-4 mt-4" onSubmit={handleCreateUser}>
-                <div className="space-y-2">
-                  <Label htmlFor="userid">User ID / UDISE ID <span className="text-destructive">*</span></Label>
-                  <Input
-                    id="userid"
-                    placeholder="e.g., 333, STU001, etc."
-                    value={createForm.userid}
-                    onChange={(e) => {
-                      const value = e.target.value.trim();
-                      setCreateForm((p) => ({ ...p, userid: value }));
-                      const duplicate = users.find(
-                        (u) => u.userid === value && (!selectedForEdit || u.id !== selectedForEdit.id)
-                      );
-                      if (duplicate && value) {
-                        e.target.setCustomValidity(`User ID already taken by ${duplicate.name}`);
-                      } else {
-                        e.target.setCustomValidity('');
-                      }
-                    }}
-                    required
-                    className={createForm.userid && users.find(
-                      (u) => u.userid === createForm.userid && (!selectedForEdit || u.id !== selectedForEdit.id)
-                    ) ? 'border-destructive' : ''}
-                  />
-                  {createForm.userid && users.find(
-                    (u) => u.userid === createForm.userid && (!selectedForEdit || u.id !== selectedForEdit.id)
-                  ) && (
-                    <p className="text-xs text-destructive">⚠️ This User ID is already in use</p>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+                <form className="space-y-4 mt-4" onSubmit={handleCreateUser}>
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="userid">User ID / UDISE ID <span className="text-destructive">*</span></Label>
                     <Input
-                      id="name"
-                      placeholder="John Doe"
-                      value={createForm.name}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                      id="userid"
+                      placeholder="e.g., 333, STU001, etc."
+                      value={createForm.userid}
+                      onChange={(e) => {
+                        const value = e.target.value.trim();
+                        setCreateForm((p) => ({ ...p, userid: value }));
+                        const duplicate = users.find(
+                          (u) => u.userid === value && (!selectedForEdit || u.id !== selectedForEdit.id)
+                        );
+                        if (duplicate && value) {
+                          e.target.setCustomValidity(`User ID already taken by ${duplicate.name}`);
+                        } else {
+                          e.target.setCustomValidity('');
+                        }
+                      }}
                       required
+                      className={createForm.userid && users.find(
+                        (u) => u.userid === createForm.userid && (!selectedForEdit || u.id !== selectedForEdit.id)
+                      ) ? 'border-destructive' : ''}
                     />
+                    {createForm.userid && users.find(
+                      (u) => u.userid === createForm.userid && (!selectedForEdit || u.id !== selectedForEdit.id)
+                    ) && (
+                        <p className="text-xs text-destructive">⚠️ This User ID is already in use</p>
+                      )}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select
-                      value={createForm.role}
-                      onValueChange={(v: UserRole) => setCreateForm((p) => ({ ...p, role: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="faculty">Faculty</SelectItem>
-                        <SelectItem value="student">Student</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="john@example.com"
-                    value={createForm.email}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={createForm.phone}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
-                  />
-                </div>
-
-                {createForm.role === 'faculty' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="school">School (SPOC) <span className="text-destructive">*</span></Label>
-                    <Select
-                      value={createForm.school_id}
-                      onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select school" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {schools.length === 0 ? (
-                          <SelectItem value="__none" disabled>No schools available</SelectItem>
-                        ) : (
-                          schools.map((school) => (
-                            <SelectItem key={school.id} value={String(school.id)}>
-                              {school.school_name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {createForm.role === 'student' && (
-                  <div className="space-y-4 border-t pt-4 mt-4 border-b pb-4">
-                    <h3 className="font-semibold text-sm">Student Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>School <span className="text-destructive">*</span></Label>
-                      <Select value={createForm.school_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))} required>
-                        <SelectTrigger><SelectValue placeholder="Select school" /></SelectTrigger>
+                      <Label htmlFor="name">Full Name <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="name"
+                        placeholder="John Doe"
+                        value={createForm.name}
+                        onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select
+                        value={createForm.role}
+                        onValueChange={(v: UserRole) => setCreateForm((p) => ({ ...p, role: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
                         <SelectContent>
-                          {schools.length === 0 ? <SelectItem value="__none" disabled>No schools</SelectItem> : schools.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.school_name}</SelectItem>)}
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="faculty">Faculty</SelectItem>
+                          <SelectItem value="student">Student</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="john@example.com"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={createForm.phone}
+                      onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
+                    />
+                  </div>
+
+                  {createForm.role === 'faculty' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="school">School (SPOC) <span className="text-destructive">*</span></Label>
+                      <Select
+                        value={createForm.school_id}
+                        onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))}
+                        required
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select school" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {schools.length === 0 ? (
+                            <SelectItem value="__none" disabled>No schools available</SelectItem>
+                          ) : (
+                            schools.map((school) => (
+                              <SelectItem key={school.id} value={String(school.id)}>
+                                {school.school_name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {createForm.role === 'student' && (
+                    <div className="space-y-4 border-t pt-4 mt-4 border-b pb-4">
+                      <h3 className="font-semibold text-sm">Student Details</h3>
                       <div className="space-y-2">
-                        <Label>Exam Type <span className="text-destructive">*</span></Label>
-                        <Select value={createForm.examId} onValueChange={(v) => setCreateForm(p => ({ ...p, examId: v }))} required>
-                          <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                        <Label>School <span className="text-destructive">*</span></Label>
+                        <Select value={createForm.school_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))} required>
+                          <SelectTrigger><SelectValue placeholder="Select school" /></SelectTrigger>
                           <SelectContent>
-                            {examTypes.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
+                            {schools.length === 0 ? <SelectItem value="__none" disabled>No schools</SelectItem> : schools.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.school_name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Batch Year <span className="text-destructive">*</span></Label>
-                        <Input value={createForm.batchYear} onChange={(e) => setCreateForm(p => ({ ...p, batchYear: e.target.value }))} placeholder="e.g., 2025" required />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Exam Type <span className="text-destructive">*</span></Label>
+                          <Select value={createForm.examId} onValueChange={(v) => setCreateForm(p => ({ ...p, examId: v }))} required>
+                            <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                            <SelectContent>
+                              {examTypes.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Batch Year <span className="text-destructive">*</span></Label>
+                          <Input value={createForm.batchYear} onChange={(e) => setCreateForm(p => ({ ...p, batchYear: e.target.value }))} placeholder="e.g., 2025" required />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Class/Standard <span className="text-destructive">*</span></Label>
+                          <Input value={createForm.standard} onChange={(e) => setCreateForm(p => ({ ...p, standard: e.target.value }))} placeholder="e.g., 12" required />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Section</Label>
+                          <Input value={createForm.section} onChange={(e) => setCreateForm(p => ({ ...p, section: e.target.value }))} placeholder="e.g., A" />
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Class/Standard <span className="text-destructive">*</span></Label>
-                        <Input value={createForm.standard} onChange={(e) => setCreateForm(p => ({ ...p, standard: e.target.value }))} placeholder="e.g., 12" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Section</Label>
-                        <Input value={createForm.section} onChange={(e) => setCreateForm(p => ({ ...p, section: e.target.value }))} placeholder="e.g., A" />
-                      </div>
+                  )}
+
+                  {!selectedForEdit && (
+                    <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
+                      <p className="text-sm text-muted-foreground">
+                        <Key className="w-4 h-4 inline mr-1" />
+                        Default password will be set to: <strong className="text-foreground">203040</strong>
+                      </p>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {!selectedForEdit && (
-                  <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
-                    <p className="text-sm text-muted-foreground">
-                      <Key className="w-4 h-4 inline mr-1" />
-                      Default password will be set to: <strong className="text-foreground">203040</strong>
-                    </p>
-                  </div>
-                )}
+                  {selectedForEdit && (
+                    <div className="space-y-2">
+                      <Label htmlFor="status">Status</Label>
+                      <Select value={createForm.status} onValueChange={(v: 'active' | 'inactive') => setCreateForm((p) => ({ ...p, status: v }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
-                {selectedForEdit && (
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select value={createForm.status} onValueChange={(v: 'active'|'inactive') => setCreateForm((p)=>({...p,status:v}))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsCreateOpen(false);
+                        setSelectedForEdit(null);
+                        setCreateForm({
+                          userid: '',
+                          name: '',
+                          role: 'student',
+                          email: '',
+                          phone: '',
+                          school_id: '',
+                          standard: '',
+                          section: '',
+                          batchYear: '',
+                          examId: '',
+                          status: 'active',
+                        });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {selectedForEdit ? 'Save' : 'Create User'}
+                    </Button>
                   </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsCreateOpen(false);
-                      setSelectedForEdit(null);
-                      setCreateForm({
-                        userid: '',
-                        name: '',
-                        role: 'student',
-                        email: '',
-                        phone: '',
-                        school_id: '',
-                        standard: '',
-                        section: '',
-                        batchYear: '',
-                        examId: '',
-                        status: 'active',
-                      });
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {selectedForEdit ? 'Save' : 'Create User'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -955,22 +956,22 @@ export default function UserManagement() {
           {roleFilter === 'student' && (
             <>
               <div className="flex gap-2 flex-wrap">
-                        {[{ label: 'All', value: 'all', count: users.filter(u => u.role === 'student' && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length },
-                          ...examTypes.map((et: any) => ({
-                            label: et.name,
-                            value: String(et.id),
-                            count: users.filter((u) => u.role === 'student' && u.examId === String(et.id) && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length
-                          }))
-                          ].map((e) => (
-                            <Button
-                              key={e.value}
-                              variant={examFilter === e.value ? 'default' : 'outline'}
-                              className={`rounded-xl px-5 py-3 font-semibold shadow-sm border ${examFilter === e.value ? 'ring-2 ring-primary' : ''}`}
-                              onClick={() => setExamFilter(e.value)}
-                            >
-                              {e.label} <span className="ml-2 text-xs font-normal">({e.count})</span>
-                            </Button>
-                          ))}
+                {[{ label: 'All', value: 'all', count: users.filter(u => u.role === 'student' && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length },
+                ...examTypes.map((et: any) => ({
+                  label: et.name,
+                  value: String(et.id),
+                  count: users.filter((u) => u.role === 'student' && u.examId === String(et.id) && (schoolFilter === 'all' || u.schoolId === schoolFilter)).length
+                }))
+                ].map((e) => (
+                  <Button
+                    key={e.value}
+                    variant={examFilter === e.value ? 'default' : 'outline'}
+                    className={`rounded-xl px-5 py-3 font-semibold shadow-sm border ${examFilter === e.value ? 'ring-2 ring-primary' : ''}`}
+                    onClick={() => setExamFilter(e.value)}
+                  >
+                    {e.label} <span className="ml-2 text-xs font-normal">({e.count})</span>
+                  </Button>
+                ))}
               </div>
 
               <div className="flex items-center gap-2 mt-2">
@@ -981,11 +982,11 @@ export default function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">
-                       All Classes ({users.filter((u) => u.role === 'student').length} students)
+                      All Classes ({users.filter((u) => u.role === 'student').length} students)
                     </SelectItem>
                     {Array.from(new Set(users.filter(u => u.role === 'student' && u.standard).map(u => u.standard))).sort().map(std => (
                       <SelectItem key={String(std)} value={String(std)}>
-                         Class {std}
+                        Class {std}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1198,19 +1199,19 @@ export default function UserManagement() {
                           <DropdownMenuItem
                             onClick={() => {
                               setSelectedForEdit(user);
-                                      setCreateForm({
-                                        userid: user.userid || user.id,
-                                        name: user.name,
-                                        role: user.role,
-                                        email: user.email || '',
-                                        phone: user.phone || '',
-                                        school_id: user.schoolId || '',
-                                        standard: user.standard || '',
-                                        section: user.section || '',
-                                        batchYear: user.batchYear || '',
-                                        examId: String(user.examId) || '',
-                                        status: user.status || 'active',
-                                      });
+                              setCreateForm({
+                                userid: user.userid || user.id,
+                                name: user.name,
+                                role: user.role,
+                                email: user.email || '',
+                                phone: user.phone || '',
+                                school_id: user.schoolId || '',
+                                standard: user.standard || '',
+                                section: user.section || '',
+                                batchYear: user.batchYear || '',
+                                examId: String(user.examId) || '',
+                                status: user.status || 'active',
+                              });
                               setIsCreateOpen(true);
                             }}
                           >

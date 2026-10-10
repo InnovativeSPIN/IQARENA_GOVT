@@ -28,7 +28,7 @@ export interface AssignedTest {
   createdAt?: string;
   attemptedAt?: string | null;
   timeTaken?: string | null;
-} 
+}
 
 export interface TestQuestion {
   id: string;
@@ -75,6 +75,9 @@ export interface TestAttempt {
   totalQuestions: number;
   attempted: number;
   unattempted: number;
+  correct?: number;
+  incorrect?: number;
+  correctPercentage?: number;
   score?: number;
   totalMarks: number;
   percentage?: number;

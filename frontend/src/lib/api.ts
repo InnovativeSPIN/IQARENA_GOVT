@@ -13,7 +13,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     ...incomingHeaders,
   };
 
-  if (options.body && !Object.keys(headers).some(h => h.toLowerCase() === 'content-type')) {
+  if (options.body && !(options.body instanceof FormData) && !Object.keys(headers).some(h => h.toLowerCase() === 'content-type')) {
     headers['Content-Type'] = 'application/json';
   }
 

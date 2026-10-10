@@ -18,6 +18,7 @@ import testRoutes from './routes/admin/testRoutes.js';
 import offlinePaperRoutes from './routes/admin/offlinePaperRoutes.js';
 import batchAdminRoutes from './routes/admin/batchRoutes.js';
 import schoolRoutes from './routes/admin/schoolRoutes.js';
+import ebookRoutes from './routes/admin/ebookRoutes.js';
 import batchRoutes from './routes/batch/batchRoutes.js';
 import dashboardRoutes from './routes/dashboard/dashboardRoutes.js';
 import studentTestRoutes from './routes/student/studentTestRoutes.js';
@@ -30,8 +31,17 @@ import assignedTestsRoutes from './routes/student/assignedTestsRoutes.js';
 import resultsRoutes from './routes/student/resultsRoutes.js';
 import { optionalAuth } from './middleware/auth.js';
 import studentNotificationsRoutes from './routes/student/notificationsRoutes.js';
+import studentEbookRoutes from './routes/student/ebookRoutes.js';
 
 dotenv.config();
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception thrown:', err);
+});
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -116,6 +126,9 @@ app.use('/api/admin/meta', examMetaRoutes);
 // Admin school routes
 app.use('/api/admin/schools', schoolRoutes);
 
+// Admin ebook routes
+app.use('/api/admin/ebooks', ebookRoutes);
+
 // Batch routes
 app.use('/api/batches', batchRoutes);
 
@@ -136,6 +149,9 @@ app.use('/api/student/results', resultsRoutes);
 
 // Student notifications
 app.use('/api/student/notifications', studentNotificationsRoutes);
+
+// Student ebooks
+app.use('/api/student/ebooks', studentEbookRoutes);
 
 // Faculty dashboard routes
 app.use('/api/faculty', facultyRoutes);

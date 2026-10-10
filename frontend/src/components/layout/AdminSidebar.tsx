@@ -16,6 +16,7 @@ import {
   LogOut,
   Layers,
   Building,
+  BookMarked,
   BarChart3,
   MessageSquare,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
   { icon: Users, label: 'User Management', path: '/admin/users' },
   { icon: Building, label: 'School Management', path: '/admin/schools' },
+  { icon: BookMarked, label: 'E-Book', path: '/admin/ebooks' },
   { icon: BookOpen, label: 'Exam Management', path: '/admin/exams' },
   { icon: Layers, label: 'Subject Management', path: '/admin/subjects' },
   { icon: FileText, label: 'Topic Management', path: '/admin/topics' },

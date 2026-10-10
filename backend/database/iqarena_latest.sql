@@ -87,6 +87,7 @@ CREATE TABLE `exams` (
 ) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+
 --
 -- Dumping data for table `exams`
 --
@@ -203,7 +204,7 @@ CREATE TABLE `offline_paper_questions` (
   KEY `question_id` (`question_id`),
   CONSTRAINT `offline_paper_questions_ibfk_1` FOREIGN KEY (`paper_id`) REFERENCES `offline_papers` (`id`) ON DELETE CASCADE,
   CONSTRAINT `offline_paper_questions_ibfk_2` FOREIGN KEY (`question_id`) REFERENCES `questions` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -260,7 +261,7 @@ CREATE TABLE `offline_papers` (
   CONSTRAINT `offline_papers_ibfk_2` FOREIGN KEY (`batch_id`) REFERENCES `batches` (`id`),
   CONSTRAINT `offline_papers_ibfk_3` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
   CONSTRAINT `offline_papers_ibfk_4` FOREIGN KEY (`parent_paper_id`) REFERENCES `offline_papers` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -569,7 +570,7 @@ CREATE TABLE `student_test_attempt_questions` (
   PRIMARY KEY (`id`),
   KEY `attempt_id` (`attempt_id`),
   CONSTRAINT `student_test_attempt_questions_ibfk_1` FOREIGN KEY (`attempt_id`) REFERENCES `student_test_attempts` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

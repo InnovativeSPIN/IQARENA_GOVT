@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Trophy, 
-  Target, 
-  TrendingUp, 
-  Calendar, 
-  ChevronRight, 
-  Filter, 
-  Search, 
+import {
+  Trophy,
+  Target,
+  TrendingUp,
+  Calendar,
+  ChevronRight,
+  Filter,
+  Search,
   Eye,
   Atom,
   FlaskConical,
@@ -35,7 +35,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL ;
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function StudentResults() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,11 +83,11 @@ export default function StudentResults() {
       markedForReview: number;
     };
     questions: ServerQuestion[];
-    subjectWise?: Array<{subject: string, totalQuestions: number, attempted: number, correct: number, incorrect: number, unattempted: number}>;
+    subjectWise?: Array<{ subject: string, totalQuestions: number, attempted: number, correct: number, incorrect: number, unattempted: number }>;
   }
 
   const [previewData, setPreviewData] = useState<PreviewDataType | null>(null);
-  const [previewFilter, setPreviewFilter] = useState<'all'|'correct'|'wrong'|'unattempted'>('all');
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'correct' | 'wrong' | 'unattempted'>('all');
   const navigate = useNavigate();
   const { exams } = useExams();
 
@@ -123,7 +123,7 @@ export default function StudentResults() {
     averageScore: 0,
     totalRank1: 0,
   });
-  const [availableSubjects, setAvailableSubjects] = useState<Array<{id: string, name: string, count: number}>>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<Array<{ id: string, name: string, count: number, examType?: string }>>([]);
 
   // Exam-specific subject lists
   // Filter subjects based on selected exam filter (uses availableSubjects.examType populated by backend)
@@ -142,7 +142,7 @@ export default function StudentResults() {
   // Clear selected subject when exam filter changes if subject is not valid for new exam
   useEffect(() => {
     if (selectedSubject && examFilter !== 'all') {
-      const allowedSubjects = EXAM_SUBJECTS[examFilter as keyof typeof EXAM_SUBJECTS] || [];
+      const allowedSubjects = getFilteredSubjects().map(s => s.name);
       if (!allowedSubjects.includes(selectedSubject)) {
         setSelectedSubject('');
       }
@@ -153,7 +153,7 @@ export default function StudentResults() {
     try {
       setLoading(true);
       const response = await axios.get(`${API_URL}/student/results`);
-      
+
       if (response.data.success) {
         setResults(response.data.data.results);
         setStats(response.data.data.stats);
@@ -239,7 +239,7 @@ export default function StudentResults() {
               <p className="text-xs text-muted-foreground">Average Score</p>
             </CardContent>
           </Card>
-         
+
         </div>
 
         {/* Subject Filter Cards */}
@@ -262,7 +262,7 @@ export default function StudentResults() {
             {getFilteredSubjects().map((subject) => {
               const SubjectIcon = getSubjectIcon(subject.name);
               const isSelected = selectedSubject === subject.name;
-              
+
               return (
                 <Card
                   key={subject.id}
@@ -374,7 +374,7 @@ export default function StudentResults() {
                 <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">No Results Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  {activeFiltersCount > 0 
+                  {activeFiltersCount > 0
                     ? "Try adjusting your filters to see more results"
                     : "You haven't taken any tests yet"
                   }
@@ -390,8 +390,8 @@ export default function StudentResults() {
             filteredResults.map((result) => {
               const SubjectIcon = getSubjectIcon(result.subject || '');
               const resultWithCP = result as unknown as { correctPercentage?: number };
-              const correctPct = typeof resultWithCP.correctPercentage !== 'undefined' ? resultWithCP.correctPercentage : (result.totalQuestions ? Math.round(((result.correct||0)/result.totalQuestions)*100) : 0);
-              
+              const correctPct = typeof resultWithCP.correctPercentage !== 'undefined' ? resultWithCP.correctPercentage : (result.totalQuestions ? Math.round(((result.correct || 0) / result.totalQuestions) * 100) : 0);
+
               return (
                 <Card key={result.id} className="border-0 shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                   <CardContent className="p-0">
@@ -407,23 +407,23 @@ export default function StudentResults() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={cn(
                                 "font-semibold",
                                 (() => {
-                                // Choose badge color based on exam name
-                                const name = String(result.examType || '').toUpperCase();
-                                if (name === 'NEET') return 'bg-green-50 text-green-700 border-green-200';
-                                if (name === 'JEE') return 'bg-blue-50 text-blue-700 border-blue-200';
-                                // fallback deterministic color
-                                return 'bg-gray-50 text-gray-700 border-gray-200';
-                              })()
+                                  // Choose badge color based on exam name
+                                  const name = String(result.examType || '').toUpperCase();
+                                  if (name === 'NEET') return 'bg-green-50 text-green-700 border-green-200';
+                                  if (name === 'JEE') return 'bg-blue-50 text-blue-700 border-blue-200';
+                                  // fallback deterministic color
+                                  return 'bg-gray-50 text-gray-700 border-gray-200';
+                                })()
                               )}
                             >
                               {result.examType}
                             </Badge>
-                            <Badge 
+                            <Badge
                               variant="outline"
                               className="bg-gray-50 text-gray-700 border-gray-200"
                             >
@@ -439,9 +439,9 @@ export default function StudentResults() {
                               </Badge>
                             )}
                           </div>
-                          
+
                           <h3 className="text-lg font-bold text-gray-900 mb-2">{result.testTitle}</h3>
-                          
+
                           <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
                             <Calendar className="h-4 w-4" />
                             {result.submittedAt}
@@ -468,13 +468,13 @@ export default function StudentResults() {
                                   </div>
                                 )}
                               </div>
-                              <Progress 
-                                value={result.percentage} 
+                              <Progress
+                                value={result.percentage}
                                 className={cn(
                                   "h-2",
                                   result.percentage >= 80 ? "[&>div]:bg-green-500" :
-                                  result.percentage >= 60 ? "[&>div]:bg-yellow-500" :
-                                  "[&>div]:bg-red-500"
+                                    result.percentage >= 60 ? "[&>div]:bg-yellow-500" :
+                                      "[&>div]:bg-red-500"
                                 )}
                               />
                               <div className="flex justify-between mt-2 text-xs text-gray-600">
@@ -531,8 +531,8 @@ export default function StudentResults() {
                                 )}
                               </Button>
 
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 className="gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md"
                                 onClick={async () => {
                                   try {
@@ -617,7 +617,7 @@ export default function StudentResults() {
 
                   {previewData.subjectWise && previewData.subjectWise.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
-                      {previewData.subjectWise.map((s: {subject:string,totalQuestions:number,attempted:number,correct:number,incorrect:number,unattempted:number,percentage?:number}) => (
+                      {previewData.subjectWise.map((s: { subject: string, totalQuestions: number, attempted: number, correct: number, incorrect: number, unattempted: number, percentage?: number }) => (
                         <Badge key={s.subject} variant="outline" className="text-xs">
                           {s.subject}: {s.correct}/{s.totalQuestions} correct {typeof s.percentage !== 'undefined' ? `• ${s.percentage}%` : ''}
                         </Badge>
@@ -637,7 +637,7 @@ export default function StudentResults() {
                     }).map((q: ServerQuestion, idx: number) => (
                       <div key={q.id} className={cn('p-3 rounded-lg border', q.studentAnswer == null ? 'bg-muted/10 border-border' : q.isCorrect ? 'bg-success/10 border-success' : 'bg-destructive/10 border-destructive')}>
                         <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 flex items-center justify-center rounded-full bg-muted text-muted-foreground">{idx+1}</div>
+                          <div className="w-8 h-8 flex items-center justify-center rounded-full bg-muted text-muted-foreground">{idx + 1}</div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <div className="flex-1">
@@ -649,7 +649,7 @@ export default function StudentResults() {
                             </div>
 
                             <div className="mt-2 space-y-1">
-                              {(['A','B','C','D'] as const).map((opt) => {
+                              {(['A', 'B', 'C', 'D'] as const).map((opt) => {
                                 const key = `option${opt}` as keyof typeof q;
                                 const isCorrect = q.correctAnswer === opt;
                                 const isSelected = q.studentAnswer === opt;
@@ -657,7 +657,7 @@ export default function StudentResults() {
                                 const optTaText = String(((q as Record<string, unknown>)[`${key}Ta`]) || ((q as Record<string, unknown>)[`option_${opt.toLowerCase()}_ta`]) || '');
                                 const bilingual = getBilingualOption(optText, optTaText);
                                 return (
-                                  <div key={opt} className={cn('flex items-center gap-3 p-2 rounded', isCorrect ? 'bg-success/10 border border-success' : isSelected && !isCorrect ? 'bg-destructive/10 border border-destructive' : 'bg-card')}> 
+                                  <div key={opt} className={cn('flex items-center gap-3 p-2 rounded', isCorrect ? 'bg-success/10 border border-success' : isSelected && !isCorrect ? 'bg-destructive/10 border border-destructive' : 'bg-card')}>
                                     <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium shrink-0', isCorrect ? 'bg-success text-success-foreground' : isSelected ? 'bg-destructive text-destructive-foreground' : 'bg-muted')}>{opt}</div>
                                     <div className="text-sm font-medium">
                                       <span>{bilingual.en}</span>

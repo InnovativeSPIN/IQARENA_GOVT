@@ -20,7 +20,7 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD ? process.env.DB_PASSWORD : undefined,
+  password: process.env.DB_PASSWORD ? process.env.DB_PASSWORD : (process.env.DB_PASSWORD === '' ? '' : undefined),
   database: process.env.DB_NAME || 'tmhnuiqarena',
   waitForConnections: true,
   connectionLimit: 10,
@@ -31,14 +31,23 @@ const pool = mysql.createPool({
 });
 
 // Test the connection
-pool.getConnection()
-  .then((connection) => {
-    console.log('✓ Database connected successfully');
-    connection.release();
-  })
-  .catch((error) => {
-    console.error('✗ Database connection failed:', error.message);
-    process.exit(1);
-  });
+const testConnection = async (retries = 5, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const connection = await pool.getConnection();
+      console.log('✓ Database connected successfully');
+      connection.release();
+      return;
+    } catch (error) {
+      console.warn(`Database connection attempt ${i + 1}/${retries} failed: ${error.message}`);
+      if (i < retries - 1) {
+        await new Promise((res) => setTimeout(res, delay));
+      }
+    }
+  }
+  console.error('✗ Unable to connect to MySQL database after multiple attempts.');
+};
+
+testConnection();
 
 export default pool;

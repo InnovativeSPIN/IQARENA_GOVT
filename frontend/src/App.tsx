@@ -19,10 +19,12 @@ import QuestionManagement from "./pages/admin/QuestionManagement";
 import TestManagement from "./pages/admin/TestManagement";
 import NotificationLogs from "./pages/admin/NotificationLogs";
 import SchoolManagement from "./pages/admin/SchoolManagement";
+import EBookManagement from "./pages/admin/EBookManagement";
 import NotFound from "./pages/NotFound";
 
 // Student Pages
 import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentEBooks from "./pages/student/StudentEBooks";
 import AssignedTests from "./pages/student/AssignedTests";
 import ExamInterface from "./pages/student/ExamInterface";
 import ExamComplete from "./pages/student/ExamComplete";
@@ -99,6 +101,8 @@ function AppRoutes() {
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><UserManagement /></ProtectedRoute>} />
       
       <Route path="/admin/schools" element={<ProtectedRoute allowedRoles={['ADMIN']}><SchoolManagement /></ProtectedRoute>} />
+      <Route path="/admin/ebooks" element={<ProtectedRoute allowedRoles={['ADMIN']}><EBookManagement /></ProtectedRoute>} />
+      <Route path="/admin/e-books" element={<Navigate to="/admin/ebooks" replace />} />
       <Route path="/admin/exams" element={<ProtectedRoute allowedRoles={['ADMIN']}><ExamManagement /></ProtectedRoute>} />
       
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={['ADMIN']}><SubjectManagement /></ProtectedRoute>} />
@@ -111,6 +115,7 @@ function AppRoutes() {
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
+      <Route path="/student/ebooks" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentEBooks /></ProtectedRoute>} />
       <Route path="/student/tests" element={<ProtectedRoute allowedRoles={['STUDENT']}><AssignedTests /></ProtectedRoute>} />
       <Route path="/student/exam/:testId" element={<ProtectedRoute allowedRoles={['STUDENT']}><ExamInterface /></ProtectedRoute>} />
       <Route path="/student/exam-complete/:testId" element={<ProtectedRoute allowedRoles={['STUDENT']}><ExamComplete /></ProtectedRoute>} />

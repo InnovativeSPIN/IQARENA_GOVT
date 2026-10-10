@@ -1,8 +1,9 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import { apiFetch } from '@/lib/api';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, 
+  BookMarked,
   FileText, 
   BarChart3, 
   User, 
@@ -23,9 +24,17 @@ interface StudentLayoutProps {
   children: ReactNode;
 }
 
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  badge?: number | string;
+}
+
 // Main and secondary navigation groups for clearer organization
-const mainNav = [
+const mainNav: NavItem[] = [
   { icon: Home, label: 'Dashboard', path: '/student' },
+  { icon: BookMarked, label: 'E-Book', path: '/student/ebooks' },
   { icon: FileText, label: 'Tests', path: '/student/tests' },
   { icon: BarChart3, label: 'Results', path: '/student/results' },
   { icon: Bell, label: 'Notifications', path: '/student/notifications' },
@@ -42,7 +51,29 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
+  // Close on route change
+  useEffect(() => {
+    setIsUserMenuOpen(false);
+  }, [location.pathname]);
 
   // Unread notification count for the sidebar badge (refreshed on navigation, e.g. after reading them)
   const [unreadCount, setUnreadCount] = useState(0);
@@ -92,16 +123,70 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
 
-            <Link to="/student/profile">
-              <div className="flex items-center gap-3 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center shadow-md">
-                  <span className="text-sm font-bold text-white">
-                    {user?.name?.charAt(0)}
+            {/* User Profile Pill & Dropdown */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                className="flex items-center gap-2.5 bg-white rounded-full px-3 py-1.5 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-colors cursor-pointer shadow-sm focus:outline-none"
+                aria-expanded={isUserMenuOpen}
+                aria-haspopup="true"
+              >
+                <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-sm shrink-0">
+                  <span className="text-sm font-bold">
+                    {user?.name ? user.name.charAt(0).toUpperCase() : 'P'}
                   </span>
                 </div>
-                <span className="hidden md:block text-sm font-semibold text-gray-700">{user?.name}</span>
-              </div>
-            </Link>
+                <span className="hidden md:block text-sm font-bold text-slate-800 tracking-tight">
+                  {user?.name || 'PANDEESWARAN C'}
+                </span>
+              </button>
+
+              {/* User Dropdown Menu */}
+              {isUserMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-slate-100 shadow-xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  {/* User Name & Subtitle */}
+                  <div className="px-3 pt-2 pb-2">
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                      {user?.name || 'PANDEESWARAN C'}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-tight">
+                      {t('Student Portal')}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-slate-100 my-1" />
+
+                  {/* Profile */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      navigate('/student/profile');
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors text-left cursor-pointer group"
+                  >
+                    <User className="w-4 h-4 text-blue-500 group-hover:scale-105 transition-transform" />
+                    <span>{t('Profile')}</span>
+                  </button>
+
+                  <div className="border-t border-slate-100 my-1" />
+
+                  {/* Logout */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-500 hover:text-red-600 hover:bg-red-50/70 rounded-xl transition-colors text-left cursor-pointer group"
+                  >
+                    <LogOut className="w-4 h-4 text-red-500 group-hover:scale-105 transition-transform" />
+                    <span>{t('Logout')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -172,18 +257,20 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                   <span className="flex-1">{t(item.label)}</span>
                 </Link>
               ))} 
-            </nav>
-            
-            <div className="flex-shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-sidebar-border bg-sidebar">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 text-white/90 hover:text-orange-700 hover:bg-white hover:bg-opacity-10 font-medium"
-                onClick={handleLogout}
+
+              {/* Logout button placed in line under Profile / Help */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 text-left text-white/90 hover:bg-white hover:text-primary cursor-pointer"
               >
-                <LogOut className="h-5 w-5" />
-                <span>{t('Logout')}</span>
-              </Button>
-            </div>
+                <LogOut className="h-5 w-5 flex-shrink-0" />
+                <span className="flex-1">{t('Logout')}</span>
+              </button>
+            </nav>
           </div>
         </aside>
 
@@ -229,11 +316,15 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
                     active ? 'scale-110 text-teal-600 stroke-[2.25]' : 'stroke-[1.75]'
                   )}
                 />
-                {item.badge && (
-                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold h-3.5 w-3.5 rounded-full flex items-center justify-center">
-                    {item.badge}
-                  </span>
-                )}
+                {/* Badge if available or unread notifications */}
+                {(() => {
+                  const itemBadge = item.path === '/student/notifications' && unreadCount > 0 ? unreadCount : item.badge;
+                  return itemBadge ? (
+                    <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold h-3.5 w-3.5 rounded-full flex items-center justify-center">
+                      {itemBadge}
+                    </span>
+                  ) : null;
+                })()}
               </div>
               <span className="text-[10px] mt-0.5 tracking-tight leading-none">
                 {t(item.label)}

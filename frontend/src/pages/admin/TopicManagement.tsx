@@ -130,95 +130,95 @@ const normalizeTopics = (rows: any[]): Topic[] =>
 
 export default function TopicManagement() {
 
-    // Subtopic list dialog state
-    const [isSubtopicListOpen, setIsSubtopicListOpen] = useState(false);
-    const [subtopicListForTopic, setSubtopicListForTopic] = useState<Topic | null>(null);
-    const [subtopicEditStates, setSubtopicEditStates] = useState<Record<string, SubtopicEditState>>({});
-    const [subtopicEditLoading, setSubtopicEditLoading] = useState<string | null>(null);
-    // Open subtopic list dialog for a topic
-    const handleOpenSubtopicList = (topic: Topic) => {
-      setSubtopicListForTopic(topic);
-      setIsSubtopicListOpen(true);
-      // Reset edit states
-      const subtopicStates: Record<string, SubtopicEditState> = {};
-      subtopics.filter(st => st.topicId === topic.id).forEach(st => {
-        subtopicStates[st.id] = { ...st, isEditing: false };
+  // Subtopic list dialog state
+  const [isSubtopicListOpen, setIsSubtopicListOpen] = useState(false);
+  const [subtopicListForTopic, setSubtopicListForTopic] = useState<Topic | null>(null);
+  const [subtopicEditStates, setSubtopicEditStates] = useState<Record<string, SubtopicEditState>>({});
+  const [subtopicEditLoading, setSubtopicEditLoading] = useState<string | null>(null);
+  // Open subtopic list dialog for a topic
+  const handleOpenSubtopicList = (topic: Topic) => {
+    setSubtopicListForTopic(topic);
+    setIsSubtopicListOpen(true);
+    // Reset edit states
+    const subtopicStates: Record<string, SubtopicEditState> = {};
+    subtopics.filter(st => st.topicId === topic.id).forEach(st => {
+      subtopicStates[st.id] = { ...st, isEditing: false };
+    });
+    setSubtopicEditStates(subtopicStates);
+  };
+
+  // Start editing a subtopic
+  const handleEditSubtopic = (subId: string) => {
+    setSubtopicEditStates(prev => ({
+      ...prev,
+      [subId]: { ...prev[subId], isEditing: true },
+    }));
+  };
+
+  // Cancel editing a subtopic
+  const handleCancelEditSubtopic = (subId: string) => {
+    setSubtopicEditStates(prev => ({
+      ...prev,
+      [subId]: { ...prev[subId], isEditing: false, name: subtopics.find(st => st.id === subId)?.name || '', description: subtopics.find(st => st.id === subId)?.description || '' },
+    }));
+  };
+
+  // Update subtopic field
+  const handleChangeSubtopicField = (subId: string, field: keyof Subtopic) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setSubtopicEditStates(prev => ({
+      ...prev,
+      [subId]: { ...prev[subId], [field]: e.target.value },
+    }));
+  };
+
+  // Save subtopic update
+  const handleSaveSubtopic = async (subId: string) => {
+    const sub = subtopicEditStates[subId];
+    if (!sub.name.trim()) {
+      alert('Subtopic name required');
+      return;
+    }
+    if (!sub.topicId) {
+      alert('Please select a parent topic');
+      return;
+    }
+    setSubtopicEditLoading(subId);
+    try {
+      await apiFetch(`/admin/subtopics/${subId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          topicId: sub.topicId,
+          name: sub.name.trim(),
+          description: sub.description.trim() || null,
+        }),
       });
-      setSubtopicEditStates(subtopicStates);
-    };
+      await fetchAll();
+      setSubtopicEditStates(prev => ({ ...prev, [subId]: { ...prev[subId], isEditing: false } }));
+    } catch (error: any) {
+      alert(error.message || 'Failed to update subtopic');
+    } finally {
+      setSubtopicEditLoading(null);
+    }
+  };
 
-    // Start editing a subtopic
-    const handleEditSubtopic = (subId: string) => {
-      setSubtopicEditStates(prev => ({
-        ...prev,
-        [subId]: { ...prev[subId], isEditing: true },
-      }));
-    };
-
-    // Cancel editing a subtopic
-    const handleCancelEditSubtopic = (subId: string) => {
-      setSubtopicEditStates(prev => ({
-        ...prev,
-        [subId]: { ...prev[subId], isEditing: false, name: subtopics.find(st => st.id === subId)?.name || '', description: subtopics.find(st => st.id === subId)?.description || '' },
-      }));
-    };
-
-    // Update subtopic field
-    const handleChangeSubtopicField = (subId: string, field: keyof Subtopic) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setSubtopicEditStates(prev => ({
-        ...prev,
-        [subId]: { ...prev[subId], [field]: e.target.value },
-      }));
-    };
-
-    // Save subtopic update
-    const handleSaveSubtopic = async (subId: string) => {
-      const sub = subtopicEditStates[subId];
-      if (!sub.name.trim()) {
-        alert('Subtopic name required');
-        return;
-      }
-      if (!sub.topicId) {
-        alert('Please select a parent topic');
-        return;
-      }
-      setSubtopicEditLoading(subId);
-      try {
-        await apiFetch(`/admin/subtopics/${subId}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            topicId: sub.topicId,
-            name: sub.name.trim(),
-            description: sub.description.trim() || null,
-          }),
-        });
-        await fetchAll();
-        setSubtopicEditStates(prev => ({ ...prev, [subId]: { ...prev[subId], isEditing: false } }));
-      } catch (error: any) {
-        alert(error.message || 'Failed to update subtopic');
-      } finally {
-        setSubtopicEditLoading(null);
-      }
-    };
-
-    // Delete subtopic
-    const handleDeleteSubtopic = async (subId: string) => {
-      if (!window.confirm('Delete this subtopic permanently?')) return;
-      setSubtopicEditLoading(subId);
-      try {
-        await apiFetch(`/admin/subtopics/${subId}`, { method: 'DELETE' });
-        await fetchAll();
-        setSubtopicEditStates(prev => {
-          const copy = { ...prev };
-          delete copy[subId];
-          return copy;
-        });
-      } catch (error: any) {
-        alert(error.message || 'Failed to delete subtopic');
-      } finally {
-        setSubtopicEditLoading(null);
-      }
-    };
+  // Delete subtopic
+  const handleDeleteSubtopic = async (subId: string) => {
+    if (!window.confirm('Delete this subtopic permanently?')) return;
+    setSubtopicEditLoading(subId);
+    try {
+      await apiFetch(`/admin/subtopics/${subId}`, { method: 'DELETE' });
+      await fetchAll();
+      setSubtopicEditStates(prev => {
+        const copy = { ...prev };
+        delete copy[subId];
+        return copy;
+      });
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete subtopic');
+    } finally {
+      setSubtopicEditLoading(null);
+    }
+  };
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -328,7 +328,13 @@ export default function TopicManagement() {
       return acc;
     }, {} as Record<string, number>);
 
-    const cards = subjects.map((subject) => ({
+    const cards: Array<{
+      id: string;
+      name: string;
+      count: number;
+      examType: string;
+      color: string;
+    }> = subjects.map((subject) => ({
       id: subject.id,
       name: subject.name,
       count: topicCountMap[subject.id] ?? 0,
@@ -570,134 +576,134 @@ export default function TopicManagement() {
 
           <div className="flex gap-2">
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button disabled={subjectCards.length === 0}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Topic
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Add New Topic</DialogTitle>
-                <DialogDescription>Create a topic under an existing subject</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateTopic} className="space-y-4 mt-4">
-                {/* Exam selector - pick exam first, then subject list is filtered */}
-                <div className="space-y-2">
-                  <Label>Exam</Label>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant={createForm.examType === 'ALL' ? 'default' : 'ghost'} onClick={() => setCreateForm(prev => ({ ...prev, examType: 'ALL', subjectId: '' }))}>
-                      All
-                    </Button>
-                    {exams.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">Loading exams...</div>
-                    ) : (
-                      exams.map((e) => (
-                        <Button key={e.id} size="sm" variant={createForm.examType === e.name ? 'default' : 'ghost'} onClick={() => setCreateForm(prev => ({ ...prev, examType: e.name, subjectId: '' }))}>
-                          {e.name}
-                        </Button>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Move Subtopic Dialog */}
-                <Dialog open={isMoveSubtopicOpen} onOpenChange={setIsMoveSubtopicOpen}>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Move Subtopic</DialogTitle>
-                      <DialogDescription>Select a new parent topic for the subtopic</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm">New Parent Topic</Label>
-                        <Select value={moveTargetTopicId || ''} onValueChange={(v) => setMoveTargetTopicId(String(v))}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Select topic" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {topics.map(t => (
-                              <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setIsMoveSubtopicOpen(false)}>Cancel</Button>
-                        <Button onClick={async () => {
-                          if (!moveSubtopicId || !moveTargetTopicId) { alert('Select a parent topic'); return; }
-                          try {
-                            await apiFetch(`/admin/subtopics/${moveSubtopicId}`, { method: 'PUT', body: JSON.stringify({ topicId: moveTargetTopicId }) });
-                            setIsMoveSubtopicOpen(false);
-                            setMoveSubtopicId(null);
-                            setMoveTargetTopicId(null);
-                            await fetchAll();
-                          } catch (err: any) {
-                            alert(err.message || 'Failed to move subtopic');
-                          }
-                        }}>Move</Button>
-                      </div>
+              <DialogTrigger asChild>
+                <Button disabled={subjectCards.length === 0}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Topic
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Add New Topic</DialogTitle>
+                  <DialogDescription>Create a topic under an existing subject</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateTopic} className="space-y-4 mt-4">
+                  {/* Exam selector - pick exam first, then subject list is filtered */}
+                  <div className="space-y-2">
+                    <Label>Exam</Label>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant={createForm.examType === 'ALL' ? 'default' : 'ghost'} onClick={() => setCreateForm(prev => ({ ...prev, examType: 'ALL', subjectId: '' }))}>
+                        All
+                      </Button>
+                      {exams.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">Loading exams...</div>
+                      ) : (
+                        exams.map((e) => (
+                          <Button key={e.id} size="sm" variant={createForm.examType === e.name ? 'default' : 'ghost'} onClick={() => setCreateForm(prev => ({ ...prev, examType: e.name, subjectId: '' }))}>
+                            {e.name}
+                          </Button>
+                        ))
+                      )}
                     </div>
-                  </DialogContent>
-                </Dialog>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="create-subject">Subject</Label>
-                  <Select
-                    value={createForm.subjectId}
-                    onValueChange={(v) => setCreateForm(prev => ({ ...prev, subjectId: v }))}
-                  >
-                    <SelectTrigger disabled={!createForm.examType || createForm.examType === 'ALL'}>
-                      <SelectValue placeholder={createForm.examType && createForm.examType !== 'ALL' ? 'Choose a subject' : 'Select an exam first'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjectCards
-                        .filter(s => !createForm.examType || createForm.examType === 'ALL' ? true : s.examType === createForm.examType)
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  {/* Move Subtopic Dialog */}
+                  <Dialog open={isMoveSubtopicOpen} onOpenChange={setIsMoveSubtopicOpen}>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Move Subtopic</DialogTitle>
+                        <DialogDescription>Select a new parent topic for the subtopic</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm">New Parent Topic</Label>
+                          <Select value={moveTargetTopicId || ''} onValueChange={(v) => setMoveTargetTopicId(String(v))}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select topic" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {topics.map(t => (
+                                <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsMoveSubtopicOpen(false)}>Cancel</Button>
+                          <Button onClick={async () => {
+                            if (!moveSubtopicId || !moveTargetTopicId) { alert('Select a parent topic'); return; }
+                            try {
+                              await apiFetch(`/admin/subtopics/${moveSubtopicId}`, { method: 'PUT', body: JSON.stringify({ topicId: moveTargetTopicId }) });
+                              setIsMoveSubtopicOpen(false);
+                              setMoveSubtopicId(null);
+                              setMoveTargetTopicId(null);
+                              await fetchAll();
+                            } catch (err: any) {
+                              alert(err.message || 'Failed to move subtopic');
+                            }
+                          }}>Move</Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
 
-                <div className="space-y-2">
-                  <Label htmlFor="create-name">Topic Name</Label>
-                  <Input
-                    id="create-name"
-                    placeholder="e.g., Thermodynamics"
-                    value={createForm.name}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCreateForm(prev => ({ ...prev, name: val }));
-                      if (createErrors.name && val.trim()) setCreateErrors(prev => ({ ...prev, name: undefined }));
-                    }}
-                  />
-                  {createErrors.name && <p className="text-destructive text-sm mt-1">{createErrors.name}</p>}
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-subject">Subject</Label>
+                    <Select
+                      value={createForm.subjectId}
+                      onValueChange={(v) => setCreateForm(prev => ({ ...prev, subjectId: v }))}
+                    >
+                      <SelectTrigger disabled={!createForm.examType || createForm.examType === 'ALL'}>
+                        <SelectValue placeholder={createForm.examType && createForm.examType !== 'ALL' ? 'Choose a subject' : 'Select an exam first'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjectCards
+                          .filter(s => !createForm.examType || createForm.examType === 'ALL' ? true : s.examType === createForm.examType)
+                          .map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="create-desc">Description (Optional)</Label>
-                  <Textarea
-                    id="create-desc"
-                    placeholder="Brief description..."
-                    className="min-h-24"
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, description: e.target.value }))}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-name">Topic Name</Label>
+                    <Input
+                      id="create-name"
+                      placeholder="e.g., Thermodynamics"
+                      value={createForm.name}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateForm(prev => ({ ...prev, name: val }));
+                        if (createErrors.name && val.trim()) setCreateErrors(prev => ({ ...prev, name: undefined }));
+                      }}
+                    />
+                    {createErrors.name && <p className="text-destructive text-sm mt-1">{createErrors.name}</p>}
+                  </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? 'Creating...' : 'Create Topic'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="create-desc">Description (Optional)</Label>
+                    <Textarea
+                      id="create-desc"
+                      placeholder="Brief description..."
+                      className="min-h-24"
+                      value={createForm.description}
+                      onChange={(e) => setCreateForm(prev => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSaving}>
+                      {isSaving ? 'Creating...' : 'Create Topic'}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
             </Dialog>
             <Dialog open={isSubtopicOpen} onOpenChange={setIsSubtopicOpen}>
               <DialogTrigger asChild>
@@ -1007,99 +1013,99 @@ export default function TopicManagement() {
                 <tbody className="divide-y divide-border">
                   {topicOrSubtopicFilter === 'subtopics'
                     ? filteredSubtopics.map((sub) => {
-                        const parentTopic = topics.find(t => t.id === sub.topicId);
-                        return (
-                          <tr key={sub.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className={cn('p-2 rounded-lg bg-orange-100')}>
-                                  <Layers className="w-4 h-4 text-orange-500" />
-                                </div>
-                                <span className="font-medium">{sub.name}</span>
+                      const parentTopic = topics.find(t => t.id === sub.topicId);
+                      return (
+                        <tr key={sub.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={cn('p-2 rounded-lg bg-orange-100')}>
+                                <Layers className="w-4 h-4 text-orange-500" />
                               </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="outline" className="border-2 border-orange-300 bg-orange-50">
-                                <FileText className="w-3 h-3 mr-1 text-orange-500" />
-                                {parentTopic ? parentTopic.name : sub.topicName || '—'}
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-muted-foreground max-w-md truncate">
-                              {sub.description || '—'}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setMoveSubtopicId(sub.id); setMoveTargetTopicId(sub.topicId); setIsMoveSubtopicOpen(true); }}>Move</Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                              <span className="font-medium">{sub.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant="outline" className="border-2 border-orange-300 bg-orange-50">
+                              <FileText className="w-3 h-3 mr-1 text-orange-500" />
+                              {parentTopic ? parentTopic.name : sub.topicName || '—'}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-muted-foreground max-w-md truncate">
+                            {sub.description || '—'}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button size="sm" variant="outline" onClick={() => { setMoveSubtopicId(sub.id); setMoveTargetTopicId(sub.topicId); setIsMoveSubtopicOpen(true); }}>Move</Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                     : filteredTopics.map((topic) => {
-                        const color = getSubjectColor(topic.subjectName);
-                        const textColor = color.replace('bg-', 'text-');
-                        const bgLight = color + '/10';
-                        const borderColor = color + '/30';
-                        return (
-                          <tr key={topic.id} className="hover:bg-muted/30 transition-colors cursor-pointer">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className={cn('p-2 rounded-lg', bgLight)}>
-                                  <FileText className={cn('w-4 h-4', textColor)} />
-                                </div>
-                                <span className="font-medium">{topic.name}</span>
-                                <Badge title={`${subtopicCountMap[topic.id] ?? 0} subtopics`} variant="outline" className="ml-2 text-xs px-2 py-0.5">
-                                  {subtopicCountMap[topic.id] ?? 0}
-                                </Badge>
-                                <Button variant="ghost" size="icon" className="ml-2" title="Show subtopics" onClick={e => { e.stopPropagation(); handleOpenSubtopicList(topic); }}>
-                                  <List className="w-4 h-4" />
-                                </Button>
+                      const color = getSubjectColor(topic.subjectName);
+                      const textColor = color.replace('bg-', 'text-');
+                      const bgLight = color + '/10';
+                      const borderColor = color + '/30';
+                      return (
+                        <tr key={topic.id} className="hover:bg-muted/30 transition-colors cursor-pointer">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={cn('p-2 rounded-lg', bgLight)}>
+                                <FileText className={cn('w-4 h-4', textColor)} />
                               </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="outline" className={cn('border-2', borderColor, bgLight)}>
-                                <BookOpen className={cn('w-3 h-3 mr-1', textColor)} />
-                                {topic.subjectName}
+                              <span className="font-medium">{topic.name}</span>
+                              <Badge title={`${subtopicCountMap[topic.id] ?? 0} subtopics`} variant="outline" className="ml-2 text-xs px-2 py-0.5">
+                                {subtopicCountMap[topic.id] ?? 0}
                               </Badge>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-muted-foreground max-w-md truncate">
-                              {topic.description || '—'}
-                            </td>
-                            <td className="px-6 py-4 text-right flex gap-2 justify-end">
-                              <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); handleOpenAddSubtopic(topic); }}>
-                                <Plus className="w-4 h-4 mr-1" />
-                                Add Subtopic
+                              <Button variant="ghost" size="icon" className="ml-2" title="Show subtopics" onClick={e => { e.stopPropagation(); handleOpenSubtopicList(topic); }}>
+                                <List className="w-4 h-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); handleOpenSubtopicList(topic); }}>
-                                <List className="w-4 h-4 mr-2" />
-                                View Subtopics
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={e => e.stopPropagation()}>
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleOpenEdit(topic)}>
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => handleDeleteTopic(topic)}
-                                    disabled={deletingTopicId === topic.id}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    {deletingTopicId === topic.id ? 'Deleting...' : 'Delete'}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
-                        );
-                              {/* Subtopic List Dialog (moved out of loop) */}
-                      })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant="outline" className={cn('border-2', borderColor, bgLight)}>
+                              <BookOpen className={cn('w-3 h-3 mr-1', textColor)} />
+                              {topic.subjectName}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-muted-foreground max-w-md truncate">
+                            {topic.description || '—'}
+                          </td>
+                          <td className="px-6 py-4 text-right flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); handleOpenAddSubtopic(topic); }}>
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add Subtopic
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); handleOpenSubtopicList(topic); }}>
+                              <List className="w-4 h-4 mr-2" />
+                              View Subtopics
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={e => e.stopPropagation()}>
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenEdit(topic)}>
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteTopic(topic)}
+                                  disabled={deletingTopicId === topic.id}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  {deletingTopicId === topic.id ? 'Deleting...' : 'Delete'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                      {/* Subtopic List Dialog (moved out of loop) */ }
+                    })}
                 </tbody>
               </table>
             </div>
