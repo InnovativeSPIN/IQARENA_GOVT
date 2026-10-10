@@ -18,6 +18,7 @@ import {
   ChevronUp,
   Image as ImageIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -536,6 +537,51 @@ export default function QuestionManagement() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Questions');
     XLSX.writeFile(workbook, 'question_upload_template.xlsx');
+  };
+
+  const handleExportQuestions = async () => {
+    if (filteredQuestions.length === 0) {
+      toast.error('No questions to export');
+      return;
+    }
+    
+    try {
+      const XLSX = (await import('xlsx'));
+      const exportData = filteredQuestions.map((q, index) => {
+        return {
+          'Q.No': index + 1,
+          'Topic': q.topicName || '',
+          'Question (EN)': q.text || '',
+          'Question (TA)': '', // Empty by default for manual editing
+          'Option A (EN)': q.optionA || '',
+          'Option A (TA)': '',
+          'Option B (EN)': q.optionB || '',
+          'Option B (TA)': '',
+          'Option C (EN)': q.optionC || '',
+          'Option C (TA)': '',
+          'Option D (EN)': q.optionD || '',
+          'Option D (TA)': '',
+          'Answer': q.correctAnswer || '',
+          'Explanation': q.explanation || '',
+          'Marks': q.marks || 4,
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      worksheet['!cols'] = [
+        { wch: 6 }, { wch: 20 }, { wch: 40 }, { wch: 40 },
+        { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+        { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
+        { wch: 8 }, { wch: 30 }, { wch: 6 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Questions');
+      XLSX.writeFile(workbook, 'Question_Bank_Export.xlsx');
+      toast.success(`Exported ${filteredQuestions.length} questions successfully`);
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error('Failed to export questions');
+    }
   };
 
   // Parse XLSX file client-side → build preview rows with topic mapping
@@ -1777,6 +1823,10 @@ export default function QuestionManagement() {
           <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
             <FileText className="w-4 h-4 mr-2" />
             Bulk Upload
+          </Button>
+          <Button variant="outline" onClick={handleExportQuestions}>
+            <FileText className="w-4 h-4 mr-2" />
+            Export ({filteredQuestions.length})
           </Button>
         </div>
           

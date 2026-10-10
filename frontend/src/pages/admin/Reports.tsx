@@ -52,6 +52,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'not_attempted'>('completed');
+  const [exporting, setExporting] = useState(false);
   // Student whose answer sheet is open (school_students.id)
   const [sheetStudentId, setSheetStudentId] = useState<number | null>(null);
 
@@ -98,18 +99,34 @@ export default function Reports() {
   const schoolName = filters?.schools.find(s => s.id === Number(schoolId))?.name;
   const visibleStudents = (report?.students || []).filter(s => statusFilter === 'all' || (statusFilter === 'completed' ? s.status === 'completed' : s.status !== 'completed'));
 
-  const exportCsv = () => {
-    const suffix = [schoolName || 'All schools', standard ? `Class ${standard}` : ''].filter(Boolean).join(' - ');
-    if (report) {
-      downloadCsv(`${report.test.title} - ${suffix}.csv`,
-        ['Rank', 'Name', 'EMIS', 'School', 'Class', 'Status', 'Score', 'Total', 'Percent', 'Correct', 'Wrong', 'Time', 'Submitted'],
-        report.students.map(s => [s.rank, s.name, s.emisNo, s.schoolName, `${s.standard}${s.section ? '-' + s.section : ''}`,
-          s.status === 'completed' ? 'Completed' : s.status === 'in_progress' ? 'In progress' : 'Not attempted',
-          s.score, report.test.totalMarks, s.percent, s.correct, s.wrong, s.timeTaken ? duration(s.timeTaken) : '', s.completedAt ? fmt(s.completedAt) : '']));
-    } else {
-      downloadCsv(`Test reports - ${suffix}.csv`,
-        ['Test', 'Exam', 'School', 'Classes', 'Date', 'Eligible', 'Attempted', 'Average %', 'Highest %', 'Passed'],
-        overview.map(r => [r.testTitle, r.examName, r.schoolName, r.classes, r.startTime ? fmt(r.startTime) : '', r.eligible, r.attempted, r.averagePercent, r.highestPercent, r.passCount]));
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const suffix = [schoolName || 'All schools', standard ? `Class ${standard}` : ''].filter(Boolean).join(' - ');
+      const q = new URLSearchParams();
+      if (schoolId) q.set('schoolId', schoolId);
+      if (testId) q.set('testId', testId);
+      if (standard) q.set('standard', standard);
+      
+      const res = await apiFetch<{ success: boolean; data: any[] }>(`/admin/reports/export?${q}`);
+      if (res?.success && res.data) {
+        const header = [
+          'Sl.No', 'Udise code', 'School Name', 'Student emis id', 'Student name',
+          'Exam name', 'Test name', 'Total marks ', 'Marks obtained'
+        ];
+        const rows = res.data.map(r => [
+          r.slNo, r.udiseCode, r.schoolName, r.emisNo, r.studentName,
+          r.examName, r.testTitle, r.totalMarks, r.score
+        ]);
+        downloadCsv(`Report - ${suffix}.csv`, header, rows);
+      } else {
+        alert('Could not export report data');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Could not export report data');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -124,7 +141,9 @@ export default function Reports() {
             <p className="text-muted-foreground text-sm">Test results by school, test and class</p>
           </div>
           <div className="flex gap-2 print:hidden">
-            <Button variant="outline" onClick={exportCsv} disabled={loading || (!report && overview.length === 0)}><Download className="w-4 h-4 mr-1" /> Download CSV</Button>
+            <Button variant="outline" onClick={exportCsv} disabled={loading || exporting || (!report && overview.length === 0)}>
+              <Download className="w-4 h-4 mr-1" /> {exporting ? 'Exporting...' : 'Download CSV'}
+            </Button>
             <Button variant="outline" onClick={() => window.print()} disabled={loading}><Printer className="w-4 h-4 mr-1" /> Print / PDF</Button>
           </div>
         </div>

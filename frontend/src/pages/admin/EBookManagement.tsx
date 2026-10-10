@@ -100,6 +100,9 @@ export default function EBookManagement() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [existingFileUrl, setExistingFileUrl] = useState<string>('');
 
+  const [systemExams, setSystemExams] = useState<{id: number, name: string}[]>([]);
+  const [systemSubjects, setSystemSubjects] = useState<{id: number, name: string}[]>([]);
+
   // Fetch EBooks
   const fetchEBooks = async () => {
     setLoading(true);
@@ -116,9 +119,73 @@ export default function EBookManagement() {
     }
   };
 
+  const fetchSystemExams = async () => {
+    try {
+      const res = await apiFetch('/admin/meta/exams');
+      if (res.success) {
+        setSystemExams(res.exams || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch system exams', err);
+    }
+  };
+
   useEffect(() => {
     fetchEBooks();
+    fetchSystemExams();
   }, []);
+
+  useEffect(() => {
+    if (formData.exam_name) {
+      const exam = systemExams.find(e => e.name === formData.exam_name);
+      if (exam) {
+        apiFetch(`/admin/meta/subjects?examId=${exam.id}`).then(res => {
+          if (res.success) {
+            setSystemSubjects(res.subjects || []);
+          }
+        }).catch(console.error);
+      } else {
+        setSystemSubjects([]);
+      }
+    } else {
+      setSystemSubjects([]);
+    }
+  }, [formData.exam_name, systemExams]);
+
+  // Extract unique exams and subjects from ebooks AND system
+  const uniqueExams = useMemo(() => {
+    const exams = new Set(ebooks.map(b => b.exam_name).filter(Boolean));
+    systemExams.forEach(e => exams.add(e.name)); // Add real-time DB exams
+    // Ensure standard exams are there for convenience
+    exams.add('NMMS');
+    exams.add('TRUST');
+    return Array.from(exams).sort();
+  }, [ebooks, systemExams]);
+
+  const getSubjectsForExam = (exam: string) => {
+    const subjects = new Set(ebooks.filter(b => b.exam_name === exam).map(b => b.subject_name).filter(Boolean));
+    if (exam === 'NMMS') {
+      subjects.add('MAT');
+      subjects.add('SAT');
+    }
+    // Add real-time DB subjects for this exam if it's the currently selected one in the form
+    if (exam === formData.exam_name) {
+      systemSubjects.forEach(s => subjects.add(s.name));
+    }
+    return Array.from(subjects).sort();
+  };
+
+  const getClassesForExam = (exam: string) => {
+    const classes = new Set(ebooks.filter(b => b.exam_name === exam).map(b => b.class_grade).filter(Boolean));
+    if (exam && exam.toUpperCase().includes('NMMS')) classes.add('Class 8');
+    if (exam && exam.toUpperCase().includes('TRUST')) classes.add('Class 9');
+    if (exam && exam.toUpperCase().includes('NEET')) {
+      classes.add('Class 11');
+      classes.add('Class 12');
+    }
+    classes.add('Apply to All');
+    return Array.from(classes).sort();
+  };
 
   // Filtered books
   const filteredBooks = useMemo(() => {
@@ -134,7 +201,7 @@ export default function EBookManagement() {
       const matchesExam = selectedExamFilter === 'ALL' || b.exam_name === selectedExamFilter;
       const matchesPaper =
         selectedPaperFilter === 'ALL' ||
-        (b.exam_name === 'NMMS' && b.subject_name === selectedPaperFilter);
+        b.subject_name === selectedPaperFilter;
 
       return matchesSearch && matchesExam && matchesPaper;
     });
@@ -143,9 +210,13 @@ export default function EBookManagement() {
   // Dynamic statistics
   const stats = useMemo(() => {
     const total = ebooks.length;
-    const nmmsCount = ebooks.filter((b) => b.exam_name === 'NMMS').length;
-    const trustCount = ebooks.filter((b) => b.exam_name === 'TRUST').length;
-    return { total, nmmsCount, trustCount };
+    const byExam = ebooks.reduce((acc, book) => {
+      if (book.exam_name) {
+        acc[book.exam_name] = (acc[book.exam_name] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    return { total, byExam };
   }, [ebooks]);
 
   const handleOpenAddModal = () => {
@@ -168,7 +239,7 @@ export default function EBookManagement() {
     setFormData({
       title: book.title || '',
       exam_name: book.exam_name || '',
-      subject_name: book.exam_name === 'TRUST' ? '' : (book.subject_name || ''),
+      subject_name: book.subject_name || '',
       class_grade: book.class_grade || '',
       description: book.description || '',
       status: book.status === 1 || book.status === true,
@@ -210,12 +281,7 @@ export default function EBookManagement() {
     }
 
     if (!formData.exam_name) {
-      toast.error('Please choose Exam (NMMS or TRUST)');
-      return;
-    }
-
-    if (formData.exam_name === 'NMMS' && !formData.subject_name) {
-      toast.error('Please choose Paper (MAT or SAT) for NMMS');
+      toast.error('Please specify an Exam (e.g., NMMS or TRUST)');
       return;
     }
 
@@ -233,8 +299,8 @@ export default function EBookManagement() {
     try {
       const body = new FormData();
       body.append('title', formData.title.trim());
-      body.append('exam_name', formData.exam_name);
-      body.append('subject_name', formData.exam_name === 'TRUST' ? '' : (formData.subject_name || ''));
+      body.append('exam_name', formData.exam_name.trim());
+      body.append('subject_name', formData.subject_name ? formData.subject_name.trim() : '');
       body.append('class_grade', formData.class_grade);
       body.append('description', formData.description.trim());
       body.append('status', formData.status ? '1' : '0');
@@ -282,7 +348,7 @@ export default function EBookManagement() {
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              Upload and manage NMMS & TRUST study materials, question banks, and syllabus guides.
+              Upload and manage study materials, question banks, and syllabus guides.
             </p>
           </div>
 
@@ -309,7 +375,7 @@ export default function EBookManagement() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="border shadow-xs bg-card hover:shadow-sm transition-shadow">
             <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
               <div>
@@ -324,33 +390,23 @@ export default function EBookManagement() {
             </CardContent>
           </Card>
 
-          <Card className="border shadow-xs bg-card hover:shadow-sm transition-shadow">
-            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  NMMS Materials
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-indigo-600 mt-0.5 sm:mt-1">{stats.nmmsCount}</p>
-              </div>
-              <div className="px-2.5 py-1 sm:p-3 bg-indigo-500/10 text-indigo-600 rounded-xl font-bold text-xs shrink-0 flex items-center justify-center">
-                NMMS
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border shadow-xs bg-card hover:shadow-sm transition-shadow sm:col-span-2 lg:col-span-1">
-            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  TRUST Materials
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-amber-600 mt-0.5 sm:mt-1">{stats.trustCount}</p>
-              </div>
-              <div className="px-2.5 py-1 sm:p-3 bg-amber-500/10 text-amber-600 rounded-xl font-bold text-xs shrink-0 flex items-center justify-center">
-                TRUST
-              </div>
-            </CardContent>
-          </Card>
+          {uniqueExams.map((examName) => (
+            <Card key={examName as string} className="border shadow-xs bg-card hover:shadow-sm transition-shadow">
+              <CardContent className="p-3.5 sm:p-4 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider truncate" title={`${examName} Materials`}>
+                    {examName} Materials
+                  </p>
+                  <p className="text-xl sm:text-2xl font-bold text-primary mt-0.5 sm:mt-1">
+                    {stats.byExam[examName as string] || 0}
+                  </p>
+                </div>
+                <div className="px-2.5 py-1 sm:p-2 bg-primary/10 text-primary rounded-xl font-bold text-[10px] sm:text-xs shrink-0 flex items-center justify-center max-w-[80px] truncate">
+                  {examName as string}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* Filters & Search Control Bar */}
@@ -378,138 +434,40 @@ export default function EBookManagement() {
 
               {/* Unified Exam & Paper Filter */}
               <div className="flex items-center gap-2 shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 px-3 gap-2 font-normal text-xs sm:text-sm bg-background border-input hover:bg-accent/40"
-                    >
-                      {selectedExamFilter === 'ALL' ? (
-                        <span className="text-muted-foreground">All Exams</span>
-                      ) : selectedExamFilter === 'TRUST' ? (
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <Badge
-                            variant="secondary"
-                            className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs py-0 px-1.5"
-                          >
-                            TRUST
-                          </Badge>
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <Badge
-                            variant="secondary"
-                            className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 text-xs py-0 px-1.5"
-                          >
-                            NMMS
-                          </Badge>
-                          {selectedPaperFilter !== 'ALL' && (
-                            <span className="text-xs text-foreground font-semibold">
-                              ({selectedPaperFilter})
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-60 p-1.5" align="end">
-                    <DropdownMenuItem
-                      className="cursor-pointer py-2 px-3 rounded-md flex items-center justify-between"
-                      onClick={() => {
-                        setSelectedExamFilter('ALL');
-                        setSelectedPaperFilter('ALL');
-                      }}
-                    >
-                      <span className="font-medium text-sm">All Exams</span>
-                      {selectedExamFilter === 'ALL' && (
-                        <Check className="w-4 h-4 text-primary ml-2" />
-                      )}
-                    </DropdownMenuItem>
+                <Select
+                  value={selectedExamFilter}
+                  onValueChange={(val) => {
+                    setSelectedExamFilter(val);
+                    setSelectedPaperFilter('ALL');
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="All Exams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Exams</SelectItem>
+                    {uniqueExams.map(ex => (
+                      <SelectItem key={ex as string} value={ex as string}>{ex as string}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                    <div className="my-1 border-t border-border/50" />
-
-                    {/* NMMS Downward Hover Container: opens on hover, closes when hover removed */}
-                    <div
-                      onMouseEnter={() => setNmmsFilterExpanded(true)}
-                      onMouseLeave={() => setNmmsFilterExpanded(false)}
-                      className="relative rounded-md transition-colors"
-                    >
-                      <div
-                        className="flex items-center justify-between py-2 px-3 rounded-md cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 transition-colors"
-                        onClick={() => {
-                          setSelectedExamFilter('NMMS');
-                          setSelectedPaperFilter('ALL');
-                          setNmmsFilterExpanded(false);
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
-                            NMMS
-                          </span>
-                        </div>
-                        {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'ALL' && (
-                          <Check className="w-4 h-4 text-indigo-600 ml-auto mr-1.5" />
-                        )}
-                        <ChevronDown
-                          className={`w-4 h-4 text-indigo-600 transition-transform duration-200 ${
-                            nmmsFilterExpanded ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </div>
-
-                      {/* NMMS downward sub-items: only MAT and SAT */}
-                      {nmmsFilterExpanded && (
-                        <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-indigo-200 dark:border-indigo-800 ml-4 my-1">
-                          <DropdownMenuItem
-                            className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                            onClick={() => {
-                              setSelectedExamFilter('NMMS');
-                              setSelectedPaperFilter('MAT');
-                              setNmmsFilterExpanded(false);
-                            }}
-                          >
-                            <span className="font-medium">MAT (Mental Ability Test)</span>
-                            {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'MAT' && (
-                              <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                            onClick={() => {
-                              setSelectedExamFilter('NMMS');
-                              setSelectedPaperFilter('SAT');
-                              setNmmsFilterExpanded(false);
-                            }}
-                          >
-                            <span className="font-medium">SAT (Scholastic Aptitude Test)</span>
-                            {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'SAT' && (
-                              <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                            )}
-                          </DropdownMenuItem>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="my-1 border-t border-border/50" />
-
-                    {/* TRUST - Direct item below NMMS */}
-                    <DropdownMenuItem
-                      className="cursor-pointer py-2 px-3 rounded-md flex items-center justify-between hover:bg-amber-50/70 dark:hover:bg-amber-950/40"
-                      onClick={() => {
-                        setSelectedExamFilter('TRUST');
-                        setSelectedPaperFilter('ALL');
-                      }}
-                    >
-                      <span className="font-bold text-sm text-amber-600 dark:text-amber-400">
-                        TRUST
-                      </span>
-                      {selectedExamFilter === 'TRUST' && (
-                        <Check className="w-4 h-4 text-amber-600 ml-2" />
-                      )}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {selectedExamFilter !== 'ALL' && getSubjectsForExam(selectedExamFilter).length > 0 && (
+                  <Select
+                    value={selectedPaperFilter}
+                    onValueChange={setSelectedPaperFilter}
+                  >
+                    <SelectTrigger className="w-[140px] h-9">
+                      <SelectValue placeholder="All Papers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Papers</SelectItem>
+                      {getSubjectsForExam(selectedExamFilter).map(sub => (
+                        <SelectItem key={sub as string} value={sub as string}>{sub as string}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
 
                 {selectedExamFilter !== 'ALL' && (
                   <Button
@@ -565,19 +523,23 @@ export default function EBookManagement() {
                           className={
                             book.exam_name === 'NMMS'
                               ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 text-xs font-semibold'
-                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                              : book.exam_name === 'TRUST'
+                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                              : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-200 text-xs font-semibold'
                           }
                         >
                           {book.exam_name}
                         </Badge>
                       )}
-                      {book.exam_name === 'NMMS' && book.subject_name && (
+                      {book.subject_name && (
                         <Badge
                           variant="outline"
                           className={
                             book.subject_name === 'MAT'
                               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-xs font-semibold'
-                              : 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                              : book.subject_name === 'SAT'
+                              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                              : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 text-xs font-semibold'
                           }
                         >
                           {book.subject_name}
@@ -697,19 +659,23 @@ export default function EBookManagement() {
                                     className={
                                       book.exam_name === 'NMMS'
                                         ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 text-xs font-semibold'
-                                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                                        : book.exam_name === 'TRUST'
+                                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                                        : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-200 text-xs font-semibold'
                                     }
                                   >
                                     {book.exam_name}
                                   </Badge>
                                 )}
-                                {book.exam_name === 'NMMS' && book.subject_name && (
+                                {book.subject_name && (
                                   <Badge
                                     variant="outline"
                                     className={
                                       book.subject_name === 'MAT'
                                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-xs font-semibold'
-                                        : 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                                        : book.subject_name === 'SAT'
+                                        ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                                        : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 text-xs font-semibold'
                                     }
                                   >
                                     {book.subject_name}
@@ -807,147 +773,66 @@ export default function EBookManagement() {
 
               {/* Exam / Scheme and Class Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Cascading Choose Exam Dropdown */}
+                {/* Dynamic Exam Input */}
                 <div className="space-y-1.5">
                   <Label>
                     Exam / Scheme <span className="text-destructive">*</span>
                   </Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full justify-between font-normal h-10 px-3 bg-background border-input hover:bg-accent/40"
-                      >
-                        {formData.exam_name ? (
-                          <span className="flex items-center gap-2 font-medium text-foreground">
-                            <Badge
-                              variant="secondary"
-                              className={
-                                formData.exam_name === 'NMMS'
-                                  ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200'
-                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200'
-                              }
-                            >
-                              {formData.exam_name}
-                            </Badge>
-                            {formData.exam_name === 'NMMS' && formData.subject_name ? (
-                              <span>{formData.subject_name}</span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Choose Exam</span>
-                        )}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-64 p-1.5" align="start">
-                      {/* NMMS Downward Hover Container */}
-                      <div
-                        onMouseEnter={() => setNmmsModalExpanded(true)}
-                        onMouseLeave={() => setNmmsModalExpanded(false)}
-                        className="relative rounded-md transition-colors"
-                      >
-                        <div
-                          className="flex items-center justify-between py-2 px-3 rounded-md cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 transition-colors"
-                          onClick={() => setNmmsModalExpanded(!nmmsModalExpanded)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 text-sm">
-                              NMMS
-                            </span>
-                            <span className="text-[10px] text-indigo-500/80 bg-indigo-500/10 px-1.5 py-0.5 rounded-full font-medium">
-                              Choose Paper
-                            </span>
-                          </div>
-                          <ChevronDown
-                            className={`w-4 h-4 text-indigo-500 transition-transform duration-200 ${
-                              nmmsModalExpanded ? 'rotate-180' : ''
-                            }`}
-                          />
-                        </div>
-
-                        {/* NMMS downward items */}
-                        {nmmsModalExpanded && (
-                          <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-indigo-200 dark:border-indigo-800 ml-4 my-1">
-                            <DropdownMenuItem
-                              className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                              onClick={() => {
-                                setFormData({
-                                  ...formData,
-                                  exam_name: 'NMMS',
-                                  subject_name: 'MAT',
-                                });
-                                setNmmsModalExpanded(false);
-                              }}
-                            >
-                              <span>MAT (Mental Ability Test)</span>
-                              {formData.exam_name === 'NMMS' && formData.subject_name === 'MAT' && (
-                                <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                              onClick={() => {
-                                setFormData({
-                                  ...formData,
-                                  exam_name: 'NMMS',
-                                  subject_name: 'SAT',
-                                });
-                                setNmmsModalExpanded(false);
-                              }}
-                            >
-                              <span>SAT (Scholastic Aptitude Test)</span>
-                              {formData.exam_name === 'NMMS' && formData.subject_name === 'SAT' && (
-                                <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                              )}
-                            </DropdownMenuItem>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="my-1 border-t border-border/50" />
-
-                      {/* TRUST - Direct item */}
-                      <DropdownMenuItem
-                        className="cursor-pointer py-2 px-3 rounded-md flex items-center justify-between hover:bg-amber-50/70 dark:hover:bg-amber-950/40"
-                        onClick={() => {
-                          setFormData({
-                            ...formData,
-                            exam_name: 'TRUST',
-                            subject_name: '',
-                          });
-                        }}
-                      >
-                        <span className="font-semibold text-amber-600 dark:text-amber-400 text-sm">
-                          TRUST
-                        </span>
-                        {formData.exam_name === 'TRUST' && (
-                          <Check className="w-4 h-4 text-amber-600 ml-2" />
-                        )}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Input 
+                    placeholder="e.g. NMMS, TRUST..." 
+                    value={formData.exam_name}
+                    onChange={(e) => setFormData({ ...formData, exam_name: e.target.value.toUpperCase() })}
+                    list="form-exam-options"
+                  />
+                  <datalist id="form-exam-options">
+                    {uniqueExams.map(ex => (
+                      <option key={ex as string} value={ex as string} />
+                    ))}
+                  </datalist>
                 </div>
 
-                {/* Class / Grade */}
+                {/* Dynamic Subject/Paper Input */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="class_grade">Class / Grade</Label>
-                  <Select
-                    value={formData.class_grade || undefined}
-                    onValueChange={(val) => setFormData({ ...formData, class_grade: val })}
-                  >
-                    <SelectTrigger id="class_grade">
-                      <SelectValue placeholder="Select Class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Class 7">Class 7</SelectItem>
-                      <SelectItem value="Class 8">Class 8</SelectItem>
-                      <SelectItem value="Class 9">Class 9</SelectItem>
-                      <SelectItem value="Class 10">Class 10</SelectItem>
-                      <SelectItem value="General">General / All Grades</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>
+                    Paper / Subject <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                  </Label>
+                  <Input 
+                    placeholder="e.g. MAT, SAT, Math..." 
+                    value={formData.subject_name}
+                    onChange={(e) => setFormData({ ...formData, subject_name: e.target.value.toUpperCase() })}
+                    list="form-subject-options"
+                  />
+                  <datalist id="form-subject-options">
+                    {formData.exam_name ? getSubjectsForExam(formData.exam_name).map(sub => (
+                      <option key={sub as string} value={sub as string} />
+                    )) : null}
+                  </datalist>
+                </div>
+
+                {/* Dynamic Class/Grade Input */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>
+                    Class / Grade <span className="text-destructive">*</span>
+                  </Label>
+                  <Input 
+                    placeholder="e.g. Class 8, Class 9, General..." 
+                    value={formData.class_grade}
+                    onChange={(e) => setFormData({ ...formData, class_grade: e.target.value })}
+                    list="form-class-options"
+                  />
+                  <datalist id="form-class-options">
+                    {formData.exam_name ? getClassesForExam(formData.exam_name).map(cls => (
+                      <option key={cls as string} value={cls as string} />
+                    )) : (
+                      <>
+                        <option value="Class 7" />
+                        <option value="Class 8" />
+                        <option value="Class 9" />
+                        <option value="Class 10" />
+                        <option value="Apply to All" />
+                      </>
+                    )}
+                  </datalist>
                 </div>
               </div>
 
