@@ -228,10 +228,10 @@ export default function Login() {
               />
               <div className="flex flex-col gap-1">
                 <span className="text-sm sm:text-base font-bold text-orange-950">
-                  முதன்மைக்கல்வி அலுவலகம்
+                  முதன்மைக்கல்வி அலுவலகம், தேனி
                 </span>
                 <span className="text-xs sm:text-sm font-bold tracking-wider text-orange-950 uppercase">
-                  CHIEF EDUCATION OFFICE
+                  CHIEF EDUCATION OFFICE, THENI
                 </span>
               </div>
             </div>
