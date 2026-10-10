@@ -73,11 +73,7 @@ export async function notifyStudentsForTest(testId) {
       clauses.push(`ss.standard IN (${standards.map(() => '?').join(',')})`);
       params.push(...standards);
     }
-    if (test.exam_id) {
-      clauses.push('(ss.exam_id = ? OR ss.exam_id IS NULL)');
-      params.push(test.exam_id);
-    }
-
+    // Do not filter by exam_id; students take all tests assigned to their standard.
     const [students] = await connection.query(
       `SELECT DISTINCT ss.user_id FROM school_students ss WHERE ${clauses.join(' AND ')}`,
       params
@@ -90,6 +86,26 @@ export async function notifyStudentsForTest(testId) {
     const message = `${when} • ${test.duration_minutes || 0} minutes. Open Assigned Tests to take it.`;
 
     const values = students.map(s => [s.user_id, test.id, 'exam_reminder', `New test: ${test.title}`, message]);
+
+    // Also notify faculty
+    const facultyClauses = ['r.role_name = "FACULTY"'];
+    const facultyParams = [];
+    if (schoolIds.length > 0) {
+      facultyClauses.push(`u.school_id IN (${schoolIds.map(() => '?').join(',')})`);
+      facultyParams.push(...schoolIds);
+    }
+    const [faculty] = await connection.query(
+      `SELECT u.id as user_id FROM users u JOIN roles r ON u.role_id = r.id WHERE ${facultyClauses.join(' AND ')}`,
+      facultyParams
+    );
+
+    const facultyMessage = `Admin (CEO) posted a new test: ${test.title}. ${when} • ${test.duration_minutes || 0} minutes.`;
+    faculty.forEach(f => {
+      values.push([f.user_id, test.id, 'announcement', `New Test Published by Admin`, facultyMessage]);
+    });
+
+    if (values.length === 0) return 0;
+
     const [result] = await connection.query(
       'INSERT IGNORE INTO notifications (user_id, test_id, type, title, message) VALUES ?',
       [values]
