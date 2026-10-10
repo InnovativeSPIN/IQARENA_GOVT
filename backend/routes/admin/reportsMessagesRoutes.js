@@ -1,6 +1,6 @@
 import express from 'express';
 import { verifyAdmin } from '../../middleware/auth.js';
-import { getReportFilters, getReport, getStudentAnswerSheet } from '../../controllers/admin/reportsController.js';
+import { getReportFilters, getReport, getStudentAnswerSheet, exportReportCsv } from '../../controllers/admin/reportsController.js';
 import { adminListMessages, adminSendMessage, markMessageRead } from '../../controllers/messagesController.js';
 import { withMessageImage } from '../../lib/messageUpload.js';
 
@@ -8,6 +8,7 @@ const router = express.Router();
 
 // Reports: by school, test and class
 router.get('/reports/filters', verifyAdmin, getReportFilters);
+router.get('/reports/export', verifyAdmin, exportReportCsv);
 router.get('/reports', verifyAdmin, getReport);
 router.get('/reports/tests/:testId/students/:studentId/answers', verifyAdmin, getStudentAnswerSheet);
 
