@@ -115,9 +115,9 @@ export default function FacultyStudents() {
         </select>
         <select className="h-10 rounded-md border bg-background px-3 text-sm" value={attemptFilter} onChange={e => setAttemptFilter(e.target.value as typeof attemptFilter)}>
           <option value="all">All students</option>
-          <option value="attempted">Took a test</option>
-          <option value="none">Has login, no attempts</option>
-          <option value="nologin">No login yet</option>
+          <option value="attempted">Attended Tests</option>
+          <option value="none">Not Attended Tests</option>
+          <option value="nologin">Not Logged In</option>
         </select>
         <select className="h-10 rounded-md border bg-background px-3 text-sm" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
           <option value="name">Sort: Name</option>
