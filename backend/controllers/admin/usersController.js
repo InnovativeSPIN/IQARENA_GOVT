@@ -461,8 +461,24 @@ export const resetPassword = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
+    // Handle unlinked school students
+    let userId = id;
+    if (String(id).startsWith('ss_')) {
+      const ssId = String(id).replace('ss_', '');
+      const [studentRows] = await connection.execute('SELECT user_id, student_name FROM school_students WHERE id = ?', [ssId]);
+      if (studentRows.length === 0) {
+        connection.release();
+        return res.status(404).json({ success: false, message: 'Student not found' });
+      }
+      if (!studentRows[0].user_id) {
+        connection.release();
+        return res.status(400).json({ success: false, message: 'This student has no login account yet.' });
+      }
+      userId = studentRows[0].user_id;
+    }
+
     // Check if user exists
-    const [existing] = await connection.execute('SELECT id, name FROM users WHERE id = ?', [id]);
+    const [existing] = await connection.execute('SELECT id, name FROM users WHERE id = ?', [userId]);
     if (existing.length === 0) {
       connection.release();
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -472,7 +488,7 @@ export const resetPassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
     
     // Update only the password
-    await connection.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, id]);
+    await connection.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
     
     connection.release();
     return res.status(200).json({ 

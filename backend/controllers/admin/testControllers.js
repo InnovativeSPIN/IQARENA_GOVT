@@ -1875,6 +1875,7 @@ export const getTestReport = async (req, res) => {
     );
     
     // Get top performers
+    const safeTotalMarksTop = test.totalMarks || 1;
     const [topPerformers] = await connection.execute(
       `SELECT 
         u.name as studentName,
@@ -1886,26 +1887,27 @@ export const getTestReport = async (req, res) => {
       WHERE sta.test_id = ? AND sta.status = 'completed'
       ORDER BY sta.score DESC
       LIMIT 10`,
-      [test.totalMarks, test.totalMarks, id]
+      [test.totalMarks, safeTotalMarksTop, id]
     );
+    
+    const safeTotalMarks = test.totalMarks || 1;
     
     // Get score distribution
     const [distribution] = await connection.execute(
       `SELECT
         CASE
-          WHEN (sta.score / t.total_marks * 100) >= 90 THEN '90-100%'
-          WHEN (sta.score / t.total_marks * 100) >= 80 THEN '80-89%'
-          WHEN (sta.score / t.total_marks * 100) >= 70 THEN '70-79%'
-          WHEN (sta.score / t.total_marks * 100) >= 60 THEN '60-69%'
+          WHEN (sta.score / ? * 100) >= 90 THEN '90-100%'
+          WHEN (sta.score / ? * 100) >= 80 THEN '80-89%'
+          WHEN (sta.score / ? * 100) >= 70 THEN '70-79%'
+          WHEN (sta.score / ? * 100) >= 60 THEN '60-69%'
           ELSE 'Below 60%'
         END as scoreRange,
         COUNT(*) as count
       FROM student_test_attempts sta
-      JOIN tests t ON sta.test_id = t.id
       WHERE sta.test_id = ? AND sta.status = 'completed'
       GROUP BY scoreRange
       ORDER BY scoreRange DESC`,
-      [id]
+      [safeTotalMarks, safeTotalMarks, safeTotalMarks, safeTotalMarks, id]
     );
     
     // Get school-wise statistics
@@ -1975,7 +1977,7 @@ export const getTestReportPdf = async (req, res) => {
 
     // Reuse the report queries to build report object
     const [testRows] = await connection.execute(
-      `SELECT t.id, t.title, t.total_marks as totalMarks, e.name as examType, s.name as subject FROM tests t JOIN exams e ON t.exam_id = e.id LEFT JOIN subjects s ON t.subject_id = s.id WHERE t.id = ?`,
+      `SELECT t.id, t.title, COALESCE((SELECT COALESCE(SUM(q.marks), 0) FROM test_questions tq JOIN questions q ON tq.question_id = q.id WHERE tq.test_id = t.id), 0) as totalMarks, e.name as examType, s.name as subject FROM tests t JOIN exams e ON t.exam_id = e.id LEFT JOIN subjects s ON t.subject_id = s.id WHERE t.id = ?`,
       [id]
     );
     if (testRows.length === 0) {
@@ -1983,6 +1985,7 @@ export const getTestReportPdf = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Test not found' });
     }
     const test = testRows[0];
+    const safeTotalMarks = test.totalMarks || 1;
 
     const [stats] = await connection.execute(
       `SELECT COUNT(DISTINCT sta.student_id) as totalStudents, COUNT(DISTINCT CASE WHEN sta.status = 'completed' THEN sta.student_id END) as completedStudents, COUNT(DISTINCT CASE WHEN sta.status = 'in_progress' THEN sta.student_id END) as inProgressStudents, AVG(CASE WHEN sta.status = 'completed' THEN sta.score END) as averageScore, MAX(CASE WHEN sta.status = 'completed' THEN sta.score END) as highestScore, MIN(CASE WHEN sta.status = 'completed' THEN sta.score END) as lowestScore, AVG(CASE WHEN sta.status = 'completed' THEN sta.time_taken END) as averageTimeTaken FROM student_test_attempts sta WHERE sta.test_id = ?`,
@@ -1991,12 +1994,12 @@ export const getTestReportPdf = async (req, res) => {
 
     const [topPerformers] = await connection.execute(
       `SELECT u.name as studentName, sta.score, (sta.score / ? * 100) as percentage FROM student_test_attempts sta JOIN users u ON sta.student_id = u.id WHERE sta.test_id = ? AND sta.status = 'completed' ORDER BY sta.score DESC LIMIT 10`,
-      [test.totalMarks, id]
+      [safeTotalMarks, id]
     );
 
     const [distribution] = await connection.execute(
-      `SELECT CASE WHEN (sta.score / t.total_marks * 100) >= 90 THEN '90-100%' WHEN (sta.score / t.total_marks * 100) >= 80 THEN '80-89%' WHEN (sta.score / t.total_marks * 100) >= 70 THEN '70-79%' WHEN (sta.score / t.total_marks * 100) >= 60 THEN '60-69%' ELSE 'Below 60%' END as scoreRange, COUNT(*) as count FROM student_test_attempts sta JOIN tests t ON sta.test_id = t.id WHERE sta.test_id = ? AND sta.status = 'completed' GROUP BY scoreRange ORDER BY scoreRange DESC`,
-      [id]
+      `SELECT CASE WHEN (sta.score / ? * 100) >= 90 THEN '90-100%' WHEN (sta.score / ? * 100) >= 80 THEN '80-89%' WHEN (sta.score / ? * 100) >= 70 THEN '70-79%' WHEN (sta.score / ? * 100) >= 60 THEN '60-69%' ELSE 'Below 60%' END as scoreRange, COUNT(*) as count FROM student_test_attempts sta WHERE sta.test_id = ? AND sta.status = 'completed' GROUP BY scoreRange ORDER BY scoreRange DESC`,
+      [safeTotalMarks, safeTotalMarks, safeTotalMarks, safeTotalMarks, id]
     );
 
     // Question stats (optional) - try to fetch if available
@@ -2059,8 +2062,8 @@ export const retestTest = async (req, res) => {
     const [result] = await connection.execute(
       `INSERT INTO tests 
         (exam_id, subject_id, all_subjects, topic_id, subtopic_id, batch_id, title, duration_minutes, total_marks, start_time, end_time, status, created_by, school_ids, is_randomized, section_config, parent_test_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [test.exam_id, test.subject_id, test.all_subjects, test.topic_id, test.subtopic_id, test.batch_id, newTitle, test.duration_minutes, test.total_marks, newStartTime, newEndTime, 'published', test.created_by, test.school_ids, test.is_randomized, test.section_config, id]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      [test.exam_id, test.subject_id, test.all_subjects, test.topic_id, test.subtopic_id, test.batch_id, newTitle, test.duration_minutes, test.total_marks, newStartTime, newEndTime, 'published', test.created_by, test.school_ids, test.is_randomized, test.section_config]
     );
     const newTestId = result.insertId;
     if (test.standard) {

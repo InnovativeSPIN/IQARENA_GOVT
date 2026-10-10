@@ -198,3 +198,70 @@ export const getReport = async (req, res) => {
     connection.release();
   }
 };
+
+export const exportReportCsv = async (req, res) => {
+  const schoolId = Number(req.query.schoolId) || null;
+  const testId = Number(req.query.testId) || null;
+  const standard = req.query.standard ? String(req.query.standard) : null;
+  const connection = await pool.getConnection();
+  try {
+    await ensureTestStandardColumn(connection);
+    const testClauses = ["t.status = 'published'", 't.parent_test_id IS NULL'];
+    const testParams = [];
+    if (testId) { testClauses.push('t.id = ?'); testParams.push(testId); }
+    
+    const [tests] = await connection.query(
+      `SELECT t.id, t.title, t.school_ids, t.standard, e.name AS examName, ${TEST_TOTAL_SQL} AS totalMarks
+       FROM tests t JOIN exams e ON e.id = t.exam_id
+       WHERE ${testClauses.join(' AND ')}`, testParams
+    );
+    
+    const [allSchools] = await connection.query('SELECT id, school_name AS name, udise_code AS udiseCode FROM schools WHERE status = 1');
+    
+    const exportData = [];
+    let slNo = 1;
+    
+    for (const t of tests) {
+      const schools = testSchools(t, allSchools).filter(sc => !schoolId || Number(sc.id) === schoolId);
+      if (schools.length === 0) continue;
+      
+      const testClasses = splitStandards(t.standard);
+      const classes = standard ? [standard] : testClasses;
+      
+      const clsSql = classes.length ? `AND ss.standard IN (${classes.map(() => '?').join(',')})` : '';
+      const params = [t.id, ...schools.map(s => s.id)];
+      if (classes.length) params.push(...classes);
+      
+      const [students] = await connection.query(`
+        SELECT sc.udise_code AS udiseCode, sc.school_name AS schoolName, ss.emis_no AS emisNo, ss.student_name AS studentName,
+               sta.status, sta.score
+        FROM school_students ss
+        JOIN schools sc ON sc.id = ss.school_id
+        LEFT JOIN student_test_attempts sta ON sta.student_id = ss.user_id AND sta.test_id = ?
+        WHERE ss.status = 1 AND ss.school_id IN (${schools.map(() => '?').join(',')}) ${clsSql}
+        ORDER BY sc.school_name, ss.standard, ss.student_name
+      `, params);
+      
+      for (const s of students) {
+        exportData.push({
+          slNo: slNo++,
+          udiseCode: s.udiseCode || '',
+          schoolName: s.schoolName || '',
+          emisNo: s.emisNo || '',
+          studentName: s.studentName || '',
+          examName: t.examName || '',
+          testTitle: t.title || '',
+          totalMarks: t.totalMarks || 0,
+          score: s.status === 'completed' ? s.score : 'Not attempted'
+        });
+      }
+    }
+    
+    res.json({ success: true, data: exportData });
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ success: false, message: 'Error exporting report', error: error.message });
+  } finally {
+    connection.release();
+  }
+};
