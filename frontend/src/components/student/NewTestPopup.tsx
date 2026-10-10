@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { BellRing, Clock, FileQuestion, CalendarClock, Play } from 'lucide-react';
 
 interface PendingTest {
@@ -25,6 +26,7 @@ const fmt = (v: string | null) => (v ? new Date(v).toLocaleString('en-IN', { dat
  * The server records that the popup was shown, so it does not come back on later logins or other devices.
  */
 export default function NewTestPopup() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [tests, setTests] = useState<PendingTest[]>([]);
   const [open, setOpen] = useState(false);
@@ -62,34 +64,34 @@ export default function NewTestPopup() {
             <BellRing className="w-6 h-6" />
           </div>
           <DialogTitle className="text-center">
-            {tests.length === 1 ? 'A new test has been assigned to you' : `${tests.length} new tests have been assigned to you`}
+            {tests.length === 1 ? t('A new test has been assigned to you') : `${tests.length} ${t('new tests have been assigned to you')}`}
           </DialogTitle>
-          <DialogDescription className="text-center">Check the schedule and be ready on time.</DialogDescription>
+          <DialogDescription className="text-center">{t('Check the schedule and be ready on time.')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-          {tests.map(t => {
-            const live = isOpenNow(t);
+          {tests.map(testItem => {
+            const live = isOpenNow(testItem);
             return (
-              <div key={t.notificationId} className="rounded-lg border p-3">
+              <div key={testItem.notificationId} className="rounded-lg border p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-semibold truncate">{t.title}</p>
-                    <p className="text-xs text-muted-foreground">{[t.examName, t.subjectName].filter(Boolean).join(' • ')}</p>
+                    <p className="font-semibold truncate">{testItem.title}</p>
+                    <p className="text-xs text-muted-foreground">{[testItem.examName, testItem.subjectName].filter(Boolean).join(' • ')}</p>
                   </div>
                   <Badge className={live ? 'bg-green-600 hover:bg-green-600' : ''} variant={live ? 'default' : 'outline'}>
-                    {live ? 'Open now' : 'Upcoming'}
+                    {live ? t('Open now') : t('Upcoming')}
                   </Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {t.duration} min</span>
-                  <span className="flex items-center gap-1"><FileQuestion className="w-3.5 h-3.5" /> {t.questions} questions</span>
-                  {t.startTime && <span className="flex items-center gap-1"><CalendarClock className="w-3.5 h-3.5" /> Starts {fmt(t.startTime)}</span>}
-                  {t.endTime && <span>Ends {fmt(t.endTime)}</span>}
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {testItem.duration} min</span>
+                  <span className="flex items-center gap-1"><FileQuestion className="w-3.5 h-3.5" /> {testItem.questions} {t('questions')}</span>
+                  {testItem.startTime && <span className="flex items-center gap-1"><CalendarClock className="w-3.5 h-3.5" /> {t('Starts')} {fmt(testItem.startTime)}</span>}
+                  {testItem.endTime && <span>{t('Ends')} {fmt(testItem.endTime)}</span>}
                 </div>
                 {live && (
-                  <Button size="sm" className="mt-3 w-full" onClick={() => { setOpen(false); navigate(`/student/exam/${t.testId}`); }}>
-                    <Play className="w-4 h-4 mr-1" /> Start test
+                  <Button size="sm" className="mt-3 w-full" onClick={() => { setOpen(false); navigate(`/student/exam/${testItem.testId}`); }}>
+                    <Play className="w-4 h-4 mr-1" /> {t('Start test')}
                   </Button>
                 )}
               </div>
@@ -98,8 +100,8 @@ export default function NewTestPopup() {
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-          <Button variant="outline" onClick={() => setOpen(false)}>Later</Button>
-          <Button onClick={() => { setOpen(false); navigate('/student/tests'); }}>View my tests</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>{t('Later')}</Button>
+          <Button onClick={() => { setOpen(false); navigate('/student/tests'); }}>{t('View my tests')}</Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -3,6 +3,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { TopNavbar } from './TopNavbar';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import AdminMessagePopup from '@/components/admin/AdminMessagePopup';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -31,6 +32,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         <TopNavbar onMenuClick={() => setMobileMenuOpen(true)} />
         <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
       </div>
+      <AdminMessagePopup />
     </div>
   );
 }
