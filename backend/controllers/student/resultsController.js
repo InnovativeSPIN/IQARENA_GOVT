@@ -232,7 +232,6 @@ export const getTestResultDetail = async (req, res) => {
          q.option_d_ta,
          q.answer AS correctAnswer,
          q.explanation,
-         q.explanation_ta AS explanationTa,
          q.marks,
          sa.selected_option AS studentAnswer,
          sa.is_marked_for_review AS isMarkedForReview,
