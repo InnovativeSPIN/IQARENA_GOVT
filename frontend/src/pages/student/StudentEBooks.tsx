@@ -23,6 +23,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -86,7 +93,18 @@ export default function StudentEBooks() {
     fetchEBooks();
   }, []);
 
-  // Filter books
+  // Extract unique exams and subjects from ebooks
+  const uniqueExams = useMemo(() => {
+    const exams = new Set(ebooks.map(b => b.exam_name).filter(Boolean));
+    return Array.from(exams).sort();
+  }, [ebooks]);
+
+  const getSubjectsForExam = (exam: string) => {
+    const subjects = new Set(ebooks.filter(b => b.exam_name === exam).map(b => b.subject_name).filter(Boolean));
+    return Array.from(subjects).sort();
+  };
+
+  // Filtered books
   const filteredBooks = useMemo(() => {
     return ebooks.filter((b) => {
       const q = searchQuery.toLowerCase().trim();
@@ -100,7 +118,7 @@ export default function StudentEBooks() {
       const matchesExam = selectedExamFilter === 'ALL' || b.exam_name === selectedExamFilter;
       const matchesPaper =
         selectedPaperFilter === 'ALL' ||
-        (b.exam_name === 'NMMS' && b.subject_name === selectedPaperFilter);
+        b.subject_name === selectedPaperFilter;
 
       return matchesSearch && matchesExam && matchesPaper;
     });
@@ -109,9 +127,7 @@ export default function StudentEBooks() {
   // Statistics
   const stats = useMemo(() => {
     const total = ebooks.length;
-    const nmmsCount = ebooks.filter((b) => b.exam_name === 'NMMS').length;
-    const trustCount = ebooks.filter((b) => b.exam_name === 'TRUST').length;
-    return { total, nmmsCount, trustCount };
+    return { total };
   }, [ebooks]);
 
   // Handle download & increment
@@ -138,7 +154,7 @@ export default function StudentEBooks() {
               {t('E-Books & Study Materials')}
             </h1>
             <p className="text-muted-foreground mt-0.5 sm:mt-1 text-xs sm:text-sm">
-              {t('Explore official NMMS (MAT & SAT) and TRUST syllabus books and question banks')}
+              {t('Explore official syllabus books and question banks')}
             </p>
           </div>
           <Button
@@ -153,235 +169,96 @@ export default function StudentEBooks() {
           </Button>
         </div>
 
-        {/* Quick Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <Card className="border shadow-xs bg-card">
-            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  {t('Total Books')}
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-foreground mt-0.5 sm:mt-1">{stats.total}</p>
-              </div>
-              <div className="p-2 sm:p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-                <BookMarked className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-            </CardContent>
-          </Card>
+        {/* Step 1: Exam Containers */}
+        <div className="space-y-4 mb-8">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <FolderOpen className="w-5 h-5 text-primary" />
+            1. Select Exam
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <Card
+              className={`cursor-pointer transition-all border-2 ${selectedExamFilter === 'ALL' ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' : 'border-border hover:border-primary/40 hover:bg-muted/30'}`}
+              onClick={() => { setSelectedExamFilter('ALL'); setSelectedPaperFilter('ALL'); }}
+            >
+              <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center h-full gap-2">
+                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-1">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-base sm:text-lg text-foreground leading-tight">All Materials</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 font-medium">{stats.total} Books Available</p>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="border shadow-xs bg-card">
-            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  NMMS (MAT & SAT)
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 sm:mt-1">
-                  {stats.nmmsCount}
-                </p>
-              </div>
-              <div className="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs shrink-0 flex items-center justify-center">
-                NMMS
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border shadow-xs bg-card sm:col-span-2 lg:col-span-1">
-            <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                  TRUST
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1">
-                  {stats.trustCount}
-                </p>
-              </div>
-              <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs shrink-0 flex items-center justify-center">
-                TRUST
-              </div>
-            </CardContent>
-          </Card>
+            {uniqueExams.map(ex => {
+              const count = ebooks.filter(b => b.exam_name === ex).length;
+              const isSelected = selectedExamFilter === ex;
+              return (
+                <Card
+                  key={ex as string}
+                  className={`cursor-pointer transition-all border-2 ${isSelected ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' : 'border-border hover:border-primary/40 hover:bg-muted/30'}`}
+                  onClick={() => { setSelectedExamFilter(ex as string); setSelectedPaperFilter('ALL'); }}
+                >
+                  <CardContent className="p-4 sm:p-5 flex flex-col items-center justify-center text-center h-full gap-2">
+                    <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-1">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-base sm:text-lg text-foreground leading-tight">{ex as string}</p>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 font-medium">{count} Books Available</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Filter and Search Bar */}
-        <Card className="border shadow-xs bg-card">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center justify-between">
-              {/* Search */}
-              <div className="relative flex-1 min-w-0">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input
-                  placeholder="Search books by title, topics, exam, or paper..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-9 bg-background border-input text-xs sm:text-sm h-9"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+        {/* Step 2: Subject Containers */}
+        {selectedExamFilter !== 'ALL' && getSubjectsForExam(selectedExamFilter).length > 0 && (
+          <div className="space-y-4 mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <BookMarked className="w-5 h-5 text-secondary" />
+              2. Select Paper / Subject
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <Card
+                className={`cursor-pointer transition-all border-2 ${selectedPaperFilter === 'ALL' ? 'border-secondary bg-secondary/5 shadow-sm scale-[1.02]' : 'border-border hover:border-secondary/40 hover:bg-muted/30'}`}
+                onClick={() => setSelectedPaperFilter('ALL')}
+              >
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <p className="font-bold text-sm sm:text-base text-foreground">All Papers</p>
+                </CardContent>
+              </Card>
+
+              {getSubjectsForExam(selectedExamFilter).map(sub => {
+                const count = ebooks.filter(b => b.exam_name === selectedExamFilter && b.subject_name === sub).length;
+                const isSelected = selectedPaperFilter === sub;
+                return (
+                  <Card
+                    key={sub as string}
+                    className={`cursor-pointer transition-all border-2 ${isSelected ? 'border-secondary bg-secondary/5 shadow-sm scale-[1.02]' : 'border-border hover:border-secondary/40 hover:bg-muted/30'}`}
+                    onClick={() => setSelectedPaperFilter(sub as string)}
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filters */}
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Unified Exam & Paper Filter */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 px-3 gap-2 font-normal text-xs sm:text-sm bg-background border-input hover:bg-accent w-full sm:w-auto justify-between sm:justify-start"
-                    >
-                      {selectedExamFilter === 'ALL' ? (
-                        <span className="text-muted-foreground">All Exams</span>
-                      ) : selectedExamFilter === 'TRUST' ? (
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <Badge
-                            variant="secondary"
-                            className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs py-0 px-1.5"
-                          >
-                            TRUST
-                          </Badge>
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <Badge
-                            variant="secondary"
-                            className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 text-xs py-0 px-1.5"
-                          >
-                            NMMS
-                          </Badge>
-                          {selectedPaperFilter !== 'ALL' && (
-                            <span className="text-xs text-foreground font-semibold">
-                              ({selectedPaperFilter})
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-60 p-1.5" align="start">
-                    <DropdownMenuItem
-                      className="cursor-pointer py-2 px-3 rounded-md flex items-center justify-between"
-                      onClick={() => {
-                        setSelectedExamFilter('ALL');
-                        setSelectedPaperFilter('ALL');
-                      }}
-                    >
-                      <span className="font-medium text-sm">All Exams</span>
-                      {selectedExamFilter === 'ALL' && (
-                        <Check className="w-4 h-4 text-primary ml-2" />
-                      )}
-                    </DropdownMenuItem>
-
-                    <div className="my-1 border-t border-border" />
-
-                    {/* NMMS Downward Hover Container: opens on hover, closes when hover removed */}
-                    <div
-                      onMouseEnter={() => setNmmsFilterExpanded(true)}
-                      onMouseLeave={() => setNmmsFilterExpanded(false)}
-                      className="relative rounded-md transition-colors"
-                    >
-                      <div
-                        className="flex items-center justify-between py-2 px-3 rounded-md cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 transition-colors"
-                        onClick={() => {
-                          setSelectedExamFilter('NMMS');
-                          setSelectedPaperFilter('ALL');
-                          setNmmsFilterExpanded(false);
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
-                            NMMS
-                          </span>
-                        </div>
-                        {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'ALL' && (
-                          <Check className="w-4 h-4 text-indigo-600 ml-auto mr-1.5" />
-                        )}
-                        <ChevronDown
-                          className={`w-4 h-4 text-indigo-600 transition-transform duration-200 ${
-                            nmmsFilterExpanded ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </div>
-
-                      {/* NMMS downward sub-items: only MAT and SAT */}
-                      {nmmsFilterExpanded && (
-                        <div className="pl-3 pr-1 py-1 space-y-0.5 border-l-2 border-indigo-200 dark:border-indigo-800 ml-4 my-1">
-                          <DropdownMenuItem
-                            className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                            onClick={() => {
-                              setSelectedExamFilter('NMMS');
-                              setSelectedPaperFilter('MAT');
-                              setNmmsFilterExpanded(false);
-                            }}
-                          >
-                            <span className="font-medium">MAT (Mental Ability Test)</span>
-                            {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'MAT' && (
-                              <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer py-1.5 px-2.5 rounded-md text-xs flex items-center justify-between"
-                            onClick={() => {
-                              setSelectedExamFilter('NMMS');
-                              setSelectedPaperFilter('SAT');
-                              setNmmsFilterExpanded(false);
-                            }}
-                          >
-                            <span className="font-medium">SAT (Scholastic Aptitude Test)</span>
-                            {selectedExamFilter === 'NMMS' && selectedPaperFilter === 'SAT' && (
-                              <Check className="w-3.5 h-3.5 text-indigo-600 ml-2" />
-                            )}
-                          </DropdownMenuItem>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="my-1 border-t border-border" />
-
-                    {/* TRUST - Direct selection */}
-                    <DropdownMenuItem
-                      className="cursor-pointer py-2 px-3 rounded-md flex items-center justify-between hover:bg-amber-50/70 dark:hover:bg-amber-950/40"
-                      onClick={() => {
-                        setSelectedExamFilter('TRUST');
-                        setSelectedPaperFilter('ALL');
-                      }}
-                    >
-                      <span className="font-semibold text-amber-600 dark:text-amber-400 text-sm">
-                        TRUST
-                      </span>
-                      {selectedExamFilter === 'TRUST' && (
-                        <Check className="w-4 h-4 text-amber-600 ml-2" />
-                      )}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {(searchQuery || selectedExamFilter !== 'ALL' || selectedPaperFilter !== 'ALL') && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedExamFilter('ALL');
-                      setSelectedPaperFilter('ALL');
-                    }}
-                    className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-3.5 h-3.5 mr-1" />
-                    Reset
-                  </Button>
-                )}
-              </div>
+                    <CardContent className="p-3 sm:p-4 flex flex-col items-center justify-center text-center gap-1">
+                      <p className="font-bold text-sm sm:text-base text-foreground">{sub as string}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium">{count} Books</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
         {/* Content Section: Cards Grid */}
+        <div className="space-y-4 mb-4 mt-2">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Download className="w-5 h-5 text-emerald-500" />
+            {selectedExamFilter === 'ALL' ? '3. All Study Materials' : '3. Study Materials'}
+          </h2>
+        </div>
         {loading ? (
           <div className="py-20 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
             <RefreshCw className="w-8 h-8 animate-spin text-primary" />
@@ -417,6 +294,8 @@ export default function StudentEBooks() {
             {filteredBooks.map((book) => {
               const isNMMS = book.exam_name === 'NMMS';
               const isMAT = book.subject_name === 'MAT';
+              const isTRUST = book.exam_name === 'TRUST';
+              const isSAT = book.subject_name === 'SAT';
 
               return (
                 <Card
@@ -434,19 +313,23 @@ export default function StudentEBooks() {
                               className={
                                 isNMMS
                                   ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 text-xs font-semibold'
-                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                                  : isTRUST
+                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 text-xs font-semibold'
+                                  : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-200 text-xs font-semibold'
                               }
                             >
                               {book.exam_name}
                             </Badge>
                           )}
-                          {isNMMS && book.subject_name && (
+                          {book.subject_name && (
                             <Badge
                               variant="outline"
                               className={
                                 isMAT
                                   ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 text-xs font-semibold'
-                                  : 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                                  : isSAT
+                                  ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 text-xs font-semibold'
+                                  : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 text-xs font-semibold'
                               }
                             >
                               {book.subject_name}

@@ -22,14 +22,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { apiFetch } from '@/lib/api';
 import NewTestPopup from '@/components/student/NewTestPopup';
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceDot
 } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1065,16 +1064,11 @@ export default function StudentDashboard() {
             <>
               <div className="h-52 sm:h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
+                  <BarChart
                     data={chartData}
                     margin={{ top: 10, right: 4, left: -28, bottom: 0 }}
+                    barSize={32}
                   >
-                    <defs>
-                      <linearGradient id="journeyGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.15} />
-                        <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
                     <CartesianGrid
                       strokeDasharray="3 3"
                       vertical={false}
@@ -1099,30 +1093,14 @@ export default function StudentDashboard() {
                     />
                     <Tooltip
                       content={<GraphTooltip allTests={chronologicalTests} />}
-                      cursor={{ stroke: '#cbd5e1', strokeWidth: 1.5, strokeDasharray: '3 3' }}
+                      cursor={{ fill: '#f1f5f9' }}
                     />
-                    <Area
-                      type="monotone"
+                    <Bar
                       dataKey="score"
-                      stroke="#0d9488"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#journeyGradient)"
-                      dot={{ r: 4, fill: '#0d9488', stroke: '#fff', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#0d9488', stroke: '#fff', strokeWidth: 2.5 }}
+                      fill="#0d9488"
+                      radius={[4, 4, 0, 0]}
                     />
-                    {/* Highlight latest data point */}
-                    {latestChartPoint && (
-                      <ReferenceDot
-                        x={latestChartPoint.name}
-                        y={latestChartPoint.score}
-                        r={5}
-                        fill="#0d9488"
-                        stroke="#fff"
-                        strokeWidth={2.5}
-                      />
-                    )}
-                  </AreaChart>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
 
@@ -1321,6 +1299,7 @@ export default function StudentDashboard() {
         </section>
 
       </div>
+      <NewTestPopup />
     </StudentLayout>
   );
 }
