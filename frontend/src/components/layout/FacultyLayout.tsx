@@ -55,7 +55,7 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
             </div>
             <div className="text-left leading-tight">
               <p className="font-extrabold tracking-wide">{appName}</p>
-              <p className="text-[11px] text-white/80">{t('Faculty Portal')}</p>
+              <p className="text-[11px] text-white/80">{t('School Portal')}</p>
             </div>
           </button>
 
@@ -86,7 +86,7 @@ export default function FacultyLayout({ children }: FacultyLayoutProps) {
                   </Avatar>
                   <div className="hidden sm:block text-left leading-tight">
                     <p className="text-sm font-semibold">{user?.name}</p>
-                    <p className="text-[11px] text-white/80">{t('Faculty')}</p>
+                    <p className="text-[11px] text-white/80">{t('School')}</p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-white/80" />
                 </Button>

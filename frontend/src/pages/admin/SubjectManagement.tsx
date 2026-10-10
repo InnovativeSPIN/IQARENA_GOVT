@@ -351,7 +351,6 @@ export default function SubjectManagement() {
                   </form>
                 </DialogContent>
               </Dialog>
-              <Button variant="outline" onClick={() => navigate('/admin/exams')}>Add / Manage Exams</Button>
             </div>
 
               {/* Edit Subject Dialog */}

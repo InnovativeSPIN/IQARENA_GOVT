@@ -226,15 +226,12 @@ export default function Login() {
                 alt="Government of Tamil Nadu" 
                 className="h-14 sm:h-16 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105 duration-300" 
               />
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm sm:text-base font-bold text-orange-950">
+                  முதன்மைக்கல்வி அலுவலகம்
+                </span>
                 <span className="text-xs sm:text-sm font-bold tracking-wider text-orange-950 uppercase">
-                  தமிழ்நாடு அரசு | Government of Tamil Nadu
-                </span>
-                <span className="text-sm sm:text-base font-extrabold text-orange-700 leading-tight">
-                  பள்ளிக்கல்வித்துறை - தேனி மாவட்டம்
-                </span>
-                <span className="text-[11px] sm:text-xs text-gray-600 font-medium">
-                  Department of School Education - Theni District
+                  CHIEF EDUCATION OFFICE
                 </span>
               </div>
             </div>
@@ -421,7 +418,7 @@ export default function Login() {
                   <div className="pt-2 flex justify-center text-sm text-gray-600">
                     {t("Don't have an account?")}
                     <button type="button" onClick={() => setIsLogin(false)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
-                      {t('Sign Up')}
+                      {t('Register')}
                     </button>
                   </div>
                 </form>
@@ -591,7 +588,7 @@ export default function Login() {
 
                   <div className="pt-2 flex justify-center">
                     <Button type="submit" size="lg" className="w-full max-w-xs" disabled={isLoading}>
-                      {isLoading ? 'Signing Up...' : t('Sign Up')}
+                      {isLoading ? 'Registering...' : t('Register')}
                     </Button>
                   </div>
                   <div className="pt-2 flex justify-center text-sm text-gray-600">

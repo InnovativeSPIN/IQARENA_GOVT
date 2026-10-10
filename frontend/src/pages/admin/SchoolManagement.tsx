@@ -11,7 +11,7 @@ type School = {
   udise_code?: string;
   state_emis_id?: string;
   district?: string;
-  management?: 'Government' | 'Aided';
+  management?: 'Government' | 'Aided' | 'Private';
   contact_phone?: string;
 };
 
@@ -134,8 +134,6 @@ export default function SchoolManagement() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">School Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">UDISE</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">State EMIS</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">District</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Management</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -150,8 +148,6 @@ export default function SchoolManagement() {
                   <tr key={school.id}>
                     <td className="px-6 py-4">{school.school_name}</td>
                     <td className="px-6 py-4">{school.udise_code || '-'}</td>
-                    <td className="px-6 py-4">{school.state_emis_id || '-'}</td>
-                    <td className="px-6 py-4">{school.district || '-'}</td>
                     <td className="px-6 py-4">{school.management || '-'}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <button 
@@ -205,30 +201,17 @@ export default function SchoolManagement() {
                   <label className="block text-sm font-medium mb-1">School Name *</label>
                   <input required className="w-full border p-2 rounded" value={formData.school_name} onChange={e => setFormData({...formData, school_name: e.target.value})} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">School Code (EMIS/DISE)</label>
-                  <input className="w-full border p-2 rounded" value={formData.school_code} onChange={e => setFormData({...formData, school_code: e.target.value})} />
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">UDISE Code</label>
                     <input className="w-full border p-2 rounded" value={formData.udise_code} onChange={e => setFormData({...formData, udise_code: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">State EMIS ID</label>
-                    <input className="w-full border p-2 rounded" value={formData.state_emis_id} onChange={e => setFormData({...formData, state_emis_id: e.target.value})} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">District</label>
-                    <input className="w-full border p-2 rounded" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium mb-1">Management</label>
                     <select className="w-full border p-2 rounded" value={formData.management} onChange={e => setFormData({...formData, management: e.target.value})}>
                       <option value="Government">Government</option>
                       <option value="Aided">Aided</option>
+                      <option value="Private">Private</option>
                     </select>
                   </div>
                 </div>

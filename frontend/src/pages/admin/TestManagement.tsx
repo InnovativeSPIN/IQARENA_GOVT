@@ -2786,37 +2786,60 @@ const subjectName = dialogSubjects?.find(s => s.id === dialogSubject)?.name;
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label className="text-sm font-medium">1. Assigned Schools</Label>
-                      <div className="border rounded-md mt-1.5 p-3 max-h-40 overflow-y-auto bg-muted/10">
-                        <div className="flex items-center justify-between border-b pb-1.5 mb-2">
-                          <span className="text-xs text-muted-foreground">Select the schools that take this test</span>
-                          {dialogSchools.length > 0 && (
-                            <button
-                              type="button"
-                              className="text-xs text-primary hover:underline"
-                              onClick={() => setFormData(prev => ({ ...prev, schoolIds: prev.schoolIds.length === dialogSchools.length ? [] : dialogSchools.map(sc => String(sc.id)) }))}
-                            >
-                              {formData.schoolIds.length === dialogSchools.length ? 'Clear' : 'Select all'}
-                            </button>
-                          )}
+                      <div className="border rounded-md mt-1.5 p-3 max-h-56 overflow-y-auto bg-muted/10 space-y-2.5">
+                        <div>
+                          <Select
+                            onValueChange={(val) => {
+                              if (val && !formData.schoolIds.includes(val)) {
+                                setFormData(prev => ({ ...prev, schoolIds: [...prev.schoolIds, val] }));
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 text-xs bg-background">
+                              <SelectValue placeholder="Select School" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {dialogSchools.map(sch => (
+                                <SelectItem key={sch.id} value={String(sch.id)}>
+                                  {sch.school_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {dialogSchools.map(sch => (
-                            <label key={sch.id} className={`flex items-center gap-2 text-sm cursor-pointer p-2 rounded border ${formData.schoolIds.includes(String(sch.id)) ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/50'}`}>
-                              <input
-                                type="checkbox"
-                                checked={formData.schoolIds.includes(String(sch.id))}
-                                onChange={(e) => {
-                                  setFormData(prev => {
-                                    const newIds = e.target.checked
-                                      ? [...prev.schoolIds, String(sch.id)]
-                                      : prev.schoolIds.filter(id => id !== String(sch.id));
-                                    return { ...prev, schoolIds: newIds };
-                                  });
-                                }}
-                              />
-                              <span className="truncate">{sch.school_name}</span>
-                            </label>
-                          ))}
+
+                        <div className="border-t pt-2">
+                          <div className="flex items-center justify-between pb-1.5 mb-2">
+                            <span className="text-xs text-muted-foreground">Select the schools that take this test</span>
+                            {dialogSchools.length > 0 && (
+                              <button
+                                type="button"
+                                className="text-xs text-primary hover:underline"
+                                onClick={() => setFormData(prev => ({ ...prev, schoolIds: prev.schoolIds.length === dialogSchools.length ? [] : dialogSchools.map(sc => String(sc.id)) }))}
+                              >
+                                {formData.schoolIds.length === dialogSchools.length ? 'Clear' : 'Select all'}
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {dialogSchools.map(sch => (
+                              <label key={sch.id} className={`flex items-center gap-2 text-sm cursor-pointer p-2 rounded border ${formData.schoolIds.includes(String(sch.id)) ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/50'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={formData.schoolIds.includes(String(sch.id))}
+                                  onChange={(e) => {
+                                    setFormData(prev => {
+                                      const newIds = e.target.checked
+                                        ? [...prev.schoolIds, String(sch.id)]
+                                        : prev.schoolIds.filter(id => id !== String(sch.id));
+                                      return { ...prev, schoolIds: newIds };
+                                    });
+                                  }}
+                                />
+                                <span className="truncate">{sch.school_name}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -40,6 +40,7 @@ export const enToTaMap: Record<string, string> = {
   'Tests': 'தேர்வுகள்',
   'Results': 'முடிவுகள்',
   'Faculty Portal': 'ஆசிரியர் தளம்',
+  'School Portal': 'பள்ளி தளம்',
   'Student Portal': 'மாணவர் தளம்',
   'Admin Portal': 'நிர்வாக தளம்',
   'My Account': 'என் கணக்கு',

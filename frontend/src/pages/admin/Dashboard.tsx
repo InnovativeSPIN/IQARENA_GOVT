@@ -13,7 +13,7 @@ import { QuickActions } from '@/components/dashboard/QuickActions';
 import { ExamSummaryCard } from '@/components/dashboard/ExamSummaryCard';
 import { apiFetch } from '@/lib/api';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
 
 type DashboardStats = {
   totalStudents: number;
@@ -165,46 +165,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 4. Charts */}
-        {stats && stats.schoolStudentCounts && stats.schoolStudentCounts.length > 0 && (
-          <section className="bg-card p-6 rounded-xl border">
-            <h3 className="font-display font-semibold text-lg mb-6">{t('admin.students_per_school', 'Students per School')}</h3>
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.schoolStudentCounts} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis 
-                    dataKey="schoolName" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 12 }} 
-                    dy={10} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 12 }} 
-                  />
-                  <Tooltip 
-                    cursor={{ fill: 'transparent' }} 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <defs>
-                    <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1b69cf" stopOpacity={0.9}/>
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.7}/>
-                    </linearGradient>
-                  </defs>
-                  <Bar dataKey="studentCount" radius={[6, 6, 0, 0]} maxBarSize={50} fill="url(#colorStudents)">
-                    {stats.schoolStudentCounts.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={['#1b69cf', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e'][index % 7]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-        )}
+
 
          {/* Quick Actions */}
         <section>
