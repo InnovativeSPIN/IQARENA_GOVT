@@ -32,7 +32,10 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     let data: any;
     try {
       data = text ? JSON.parse(text) : {};
-    } catch {
+    } catch (parseErr) {
+      if (text.trim().toLowerCase().startsWith('<!doctype html>')) {
+        throw new Error(`Server returned HTML instead of JSON. The route might not exist on the backend.`);
+      }
       data = { message: text || `Server error (${response.status} ${response.statusText})` };
     }
 
