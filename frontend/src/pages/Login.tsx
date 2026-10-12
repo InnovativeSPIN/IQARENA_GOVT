@@ -231,7 +231,7 @@ export default function Login() {
                   முதன்மைக்கல்வி அலுவலகம், தேனி
                 </span>
                 <span className="text-xs sm:text-sm font-bold tracking-wider text-orange-950 uppercase">
-                  CHIEF EDUCATION OFFICE, THENI
+                  CHIEF EDUCATIONAL OFFICE, THENI
                 </span>
               </div>
             </div>

@@ -110,11 +110,11 @@ export default function Dashboard() {
               icon={Users}
               color="primary"
             />
-            <StatCard
-              title={t('admin.total_faculty', 'Total Faculty')}
-              value={stats ? stats.totalFaculty : (loading ? '...' : '0')}
-              icon={GraduationCap}
-              color="success"
+             <StatCard
+              title={t('admin.schools', 'Total Schools')}
+              value={stats ? stats.totalSchools : (loading ? '...' : '0')}
+              icon={BookOpen}
+              color="primary"
             />
             <StatCard
               title={t('admin.total_tests', 'Total Tests')}
@@ -128,12 +128,7 @@ export default function Dashboard() {
               icon={HelpCircle}
               color="warning"
             />
-            <StatCard
-              title={t('admin.schools', 'Schools')}
-              value={stats ? stats.totalSchools : (loading ? '...' : '0')}
-              icon={BookOpen}
-              color="primary"
-            />
+          
           </div>
         </section>
 
