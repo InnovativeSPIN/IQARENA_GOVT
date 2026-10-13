@@ -143,26 +143,26 @@ export default function Login() {
       <div className="w-full max-w-5xl mx-auto flex flex-col items-center gap-5 sm:gap-6 z-10 my-auto">
         {/* TOP HEADER: Tamil Nadu Govt & NSCET Collaboration Header */}
         <header className="w-full">
-          <div className="bg-white/90 backdrop-blur-md border border-orange-200/90 shadow-lg shadow-orange-500/5 rounded-2xl px-5 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white/95 backdrop-blur-md border-2 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.38)] hover:shadow-[0_0_35px_rgba(16,185,129,0.55)] transition-all duration-300 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4">
             {/* Left: TN Govt Emblem & Department Details */}
-            <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
               <img 
                 src="/tn-govt-logo.png" 
                 alt="Government of Tamil Nadu" 
-                className="h-14 sm:h-16 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105 duration-300" 
+                className="h-14 sm:h-16 w-auto object-contain shrink-0 drop-shadow-sm transition-transform hover:scale-105 duration-300" 
               />
-              <div className="flex flex-col gap-1">
-                <span className="text-sm sm:text-base font-bold text-orange-950">
+              <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+                <span className="text-base sm:text-lg md:text-xl font-black text-slate-950 tracking-tight leading-snug">
                   முதன்மைக்கல்வி அலுவலகம், தேனி
                 </span>
-                <span className="text-xs sm:text-sm font-bold tracking-wider text-orange-950 uppercase">
+                <span className="text-xs sm:text-sm md:text-base font-extrabold tracking-wider text-emerald-900 uppercase leading-snug">
                   CHIEF EDUCATIONAL OFFICE, THENI
                 </span>
               </div>
             </div>
 
             {/* Right: Language Switcher */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
               <LanguageSwitcher />
             </div>
           </div>
