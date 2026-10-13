@@ -6,9 +6,11 @@ interface User {
   id: string;
   name: string;
   phone: string;
-  role: 'ADMIN' | 'FACULTY' | 'STUDENT';
+  role: 'ADMIN' | 'FACULTY' | 'STUDENT' | string;
   email?: string | null;
   batch?: string | null;
+  userid?: string | null;
+  udise_code?: string | null;
 }
 
 interface AuthContextType {
@@ -30,6 +32,8 @@ function decodeToken(token: string): User | null {
       name: payload.name,
       phone: payload.phone,
       role: payload.role,
+      userid: payload.userid || payload.udise_code || payload.userId,
+      udise_code: payload.udise_code || null,
     };
   } catch {
     return null;

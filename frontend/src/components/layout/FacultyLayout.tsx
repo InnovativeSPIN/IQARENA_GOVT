@@ -1,130 +1,170 @@
-import React from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { ReactNode, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FacultySidebar } from './FacultySidebar';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, BarChart3, Bell, User, LogOut, ChevronDown, Users, MessageSquare } from 'lucide-react';
+import { Menu, Bell, User, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 
 interface FacultyLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-// Faculty only monitors their school's students and results; test creation lives in the admin portal
-const navItems = [
-  { path: '/faculty', icon: LayoutDashboard, label: 'Dashboard', short: 'Home', exact: true },
-  { path: '/faculty/students', icon: Users, label: 'Students', short: 'Students' },
-  { path: '/faculty/reports', icon: BarChart3, label: 'Test Reports', short: 'Reports' },
-  { path: '/faculty/messages', icon: MessageSquare, label: 'Messages', short: 'Messages' },
-  { path: '/faculty/notifications', icon: Bell, label: 'Notifications', short: 'Alerts' },
-];
-
-export default function FacultyLayout({ children }: FacultyLayoutProps) {
+export function FacultyLayout({ children }: FacultyLayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const location = useLocation();
-  const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
 
-  const initials = (user?.name || 'FC').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const isActive = (item: typeof navItems[number]) =>
-    item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+  const initialLetter = (user?.name?.charAt(0) || 'S').toUpperCase();
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <header className="fixed top-0 left-0 right-0 h-16 z-50 bg-gradient-to-r from-[hsl(214,84%,42%)] to-[hsl(206,90%,52%)] text-white shadow-md">
-        <div className="flex items-center justify-between h-full px-4 lg:px-6">
-          <button type="button" className="flex items-center gap-2.5" onClick={() => navigate('/faculty')}>
-            <div className="w-10 h-10 rounded-full bg-white overflow-hidden flex items-center justify-center shadow-sm">
-              <img src="/iqlogo.png" alt="IQARENA logo" className="w-full h-full object-contain" />
-            </div>
-            <div className="text-left leading-tight">
-              <p className="font-extrabold tracking-wide">{appName}</p>
-              <p className="text-[11px] text-white/80">{t('School Portal')}</p>
-            </div>
-          </button>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
+        <FacultySidebar
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+        />
+      </div>
 
-          {/* Desktop links, like the reference site's top menu */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navItems.map(item => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
-                  isActive(item) ? 'bg-white text-primary shadow-sm' : 'text-white/90 hover:bg-white/15'
-                )}
+      {/* Mobile Sidebar */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="p-0 w-64 border-r-0">
+          <SheetTitle className="sr-only">School Menu</SheetTitle>
+          <FacultySidebar
+            collapsed={false}
+            hideCollapseButton={true}
+            onItemClick={() => setMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Content Area */}
+      <div
+        className={cn(
+          'min-h-screen flex flex-col transition-all duration-300',
+          collapsed ? 'md:ml-20' : 'md:ml-64'
+        )}
+      >
+        {/* Top Navbar Header */}
+        <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-full items-center justify-between px-4 md:px-6">
+            {/* Left: Mobile hamburger toggle & School Branding */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open menu"
               >
-                {t(item.label)}
-              </NavLink>
-            ))}
-          </nav>
+                <Menu className="h-5 w-5" />
+              </Button>
 
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher variant="light" />
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2 text-white hover:bg-white/15 hover:text-white">
-                  <Avatar className="h-8 w-8 border-2 border-white/70">
-                    <AvatarFallback className="bg-white text-primary text-xs font-bold">{initials}</AvatarFallback>
-                  </Avatar>
-                  <div className="hidden sm:block text-left leading-tight">
-                    <p className="text-sm font-semibold">{user?.name}</p>
-                    <p className="text-[11px] text-white/80">{t('School')}</p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-white/80" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => navigate('/faculty/profile')}>
-                  <User className="mr-2 h-4 w-4" /> {t('Profile')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" /> {t('Logout')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-16 pb-20 md:pb-8 min-h-screen">
-        <div className="mx-auto max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
-      </main>
-
-      {/* Mobile bottom navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
-        <div className="grid grid-cols-5">
-          {navItems.map(item => {
-            const active = isActive(item);
-            return (
-              <NavLink key={item.path} to={item.path} className={cn('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium', active ? 'text-primary' : 'text-muted-foreground')}>
-                <span className={cn('p-1.5 rounded-full', active && 'bg-primary/10')}>
-                  <item.icon className="h-5 w-5" />
+              <div className="flex flex-col">
+                <span className="text-base font-bold text-foreground leading-tight truncate max-w-[220px] sm:max-w-md">
+                  {user?.name || t('School Portal')}
                 </span>
-                {t(item.label)}
-              </NavLink>
-            );
-          })}
-        </div>
-      </nav>
+                {user?.userid && (
+                  <span className="text-xs text-muted-foreground font-medium">
+                    UDISE: {user.userid}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Language, Notifications & Profile with Logout */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <LanguageSwitcher />
+
+              {/* Notifications shortcut */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/faculty/notifications')}
+                className="relative"
+                title={t('Notifications')}
+              >
+                <Bell className="h-5 w-5" />
+              </Button>
+
+              {/* Profile Dropdown (Houses Logout) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="gap-2 pl-2">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-sm">
+                      <span className="text-sm font-semibold text-primary-foreground">
+                        {initialLetter}
+                      </span>
+                    </div>
+                    <span className="hidden md:inline text-sm font-medium max-w-[140px] truncate">
+                      {user?.name || t('School')}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-semibold leading-none truncate">{user?.name || 'School'}</p>
+                      <p className="text-xs leading-none text-muted-foreground truncate">
+                        {user?.email || (user?.userid ? `UDISE: ${user.userid}` : 'School Account')}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => navigate('/faculty/profile')}
+                    className="cursor-pointer"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    {t('Profile')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate('/faculty/notifications')}
+                    className="cursor-pointer"
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    {t('Notifications')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    {t('Logout')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        {/* Page Main Content */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
+
+export default FacultyLayout;
