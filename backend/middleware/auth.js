@@ -43,12 +43,12 @@ export const verifyToken = (req, res, next) => {
 	}
 };
 
-// Middleware to check if user is faculty
+// Middleware to check if user is faculty or school (SCHOOL replaces FACULTY)
 export const isFaculty = (req, res, next) => {
-	if (req.user?.role !== 'FACULTY') {
+	if (req.user?.role !== 'FACULTY' && req.user?.role !== 'SCHOOL') {
 		return res.status(403).json({
 			success: false,
-			message: 'Access denied. Faculty role required.'
+			message: 'Access denied. School/Faculty role required.'
 		});
 	}
 	next();
