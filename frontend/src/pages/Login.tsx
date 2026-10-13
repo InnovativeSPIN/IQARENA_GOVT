@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Lock, User, Phone, ArrowRight } from 'lucide-react';
+import { GraduationCap, Lock, User, Phone, ArrowRight, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,9 +19,8 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   // Login fields
   const [userId, setUserId] = useState('');
-  const [pin, setPin] = useState(['', '', '', '', '', '']);
-  const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
-  // ...existing code...
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   // Signup fields
   const [signupUserId, setSignupUserId] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -30,6 +29,7 @@ export default function Login() {
   const [signupFetchLoading, setSignupFetchLoading] = useState(false);
   const [signupPin, setSignupPin] = useState(['', '', '', '', '', '']);
   const signupPinRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   // Auto-fetch user details for signup when userId changes (debounced)
   useEffect(() => {
     if (!signupUserId.trim()) {
@@ -55,55 +55,16 @@ export default function Login() {
     }, 400);
     return () => clearTimeout(timer);
   }, [signupUserId]);
+
   const navigate = useNavigate();
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
 
-  const handlePinChange = (index: number, value: string) => {
-    const numValue = value.replace(/\D/g, '');
-    
-    if (numValue.length > 1) {
-      return;
-    }
-
-    const newPin = [...pin];
-    newPin[index] = numValue;
-    setPin(newPin);
-
-    if (numValue && index < 5) {
-      pinRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePinKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (e.key === 'Backspace') {
-      if (pin[index]) {
-        const newPin = [...pin];
-        newPin[index] = '';
-        setPin(newPin);
-      } else if (index > 0) {
-        pinRefs.current[index - 1]?.focus();
-      }
-    } else if (e.key === 'ArrowLeft' && index > 0) {
-      pinRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      pinRefs.current[index + 1]?.focus();
-    }
-  };
-
   const handleSignupPinChange = (index: number, value: string) => {
     const numValue = value.replace(/\D/g, '');
-    
-    if (numValue.length > 1) {
-      return;
-    }
-
+    if (numValue.length > 1) return;
     const newPin = [...signupPin];
     newPin[index] = numValue;
     setSignupPin(newPin);
-
     if (numValue && index < 5) {
       signupPinRefs.current[index + 1]?.focus();
     }
@@ -127,42 +88,6 @@ export default function Login() {
       signupPinRefs.current[index + 1]?.focus();
     }
   };
-
-  useEffect(() => {
-    const tryAutoLogin = async () => {
-      if (userId.trim() && pin.join('').length === 6) {
-        setIsLoading(true);
-        try {
-          const res = await apiFetch('/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ userId, password: pin.join('') })
-          });
-          loginWithToken(res.data.token, {
-            id: res.data.userId,
-            name: res.data.name,
-            phone: res.data.phone,
-            role: res.data.role,
-          });
-          toast.success('Welcome back!');
-          // Redirect based on role
-          setTimeout(() => {
-            if (res.data.role === 'ADMIN') {
-              navigate('/admin', { replace: true });
-            } else if (res.data.role === 'FACULTY') {
-              navigate('/faculty', { replace: true });
-            } else {
-              navigate('/student', { replace: true });
-            }
-          }, 500);
-        } catch (error: any) {
-          toast.error(error.message || 'Login failed');
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-    tryAutoLogin();
-  }, [userId, pin, navigate, loginWithToken]);
 
   useEffect(() => {
     const tryAutoSignup = async () => {
@@ -327,86 +252,95 @@ export default function Login() {
               {isLogin ? (
                 <form className="space-y-6" autoComplete="off" onSubmit={async (e) => {
                   e.preventDefault();
-                  if (userId.trim() && pin.join('').length === 6) {
-                    setIsLoading(true);
-                    try {
-                      const res = await apiFetch('/auth/login', {
-                        method: 'POST',
-                        body: JSON.stringify({ userId, password: pin.join('') })
-                      });
-                      // Store token and set auth context
-                      loginWithToken(res.data.token, {
-                        id: res.data.userId,
-                        name: res.data.name,
-                        phone: res.data.phone,
-                        role: res.data.role,
-                      });
-                      toast.success('Welcome back!');
-                      // Redirect based on role
-                      if (res.data.role === 'ADMIN') {
-                        navigate('/admin', { replace: true });
-                      } else if (res.data.role === 'FACULTY') {
-                        navigate('/faculty', { replace: true });
-                      } else {
-                        navigate('/student', { replace: true });
-                      }
-                    } catch (error: any) {
-                      toast.error(error.message || 'Login failed');
-                    } finally {
-                      setIsLoading(false);
+                  if (!userId.trim()) {
+                    toast.error('Please enter School UDISE, User ID or Email');
+                    return;
+                  }
+                  if (!password.trim()) {
+                    toast.error('Please enter your password or 6-digit PIN');
+                    return;
+                  }
+
+                  setIsLoading(true);
+                  try {
+                    const res = await apiFetch('/auth/login', {
+                      method: 'POST',
+                      body: JSON.stringify({ userId: userId.trim(), password: password.trim() })
+                    });
+                    // Store token and set auth context
+                    loginWithToken(res.data.token, {
+                      id: res.data.userId,
+                      name: res.data.name,
+                      phone: res.data.phone,
+                      role: res.data.role,
+                    });
+                    toast.success('Welcome back!');
+                    // Redirect based on role
+                    if (res.data.role === 'ADMIN') {
+                      navigate('/admin', { replace: true });
+                    } else if (res.data.role === 'FACULTY' || res.data.role === 'SCHOOL') {
+                      navigate('/faculty', { replace: true });
+                    } else {
+                      navigate('/student', { replace: true });
                     }
-                  } else {
-                    toast.error('Please enter User ID and 6-digit PIN');
+                  } catch (error: any) {
+                    toast.error(error.message || 'Login failed');
+                  } finally {
+                    setIsLoading(false);
                   }
                 }}>
-                  <div className="text-center mb-8">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1">
                       {t('Welcome Back')}
                     </h2>
+                    <p className="text-sm text-gray-500">
+                      {t('Login with School UDISE, User ID or Email')}
+                    </p>
                   </div>
 
-                  {/* User ID / Email Input */}
+                  {/* User ID / UDISE / Email Input */}
                   <div className="space-y-2">
-                    <Label htmlFor="userId" className="text-base font-semibold text-gray-700">
-                      {t('User ID / Email')}
+                    <Label htmlFor="userId" className="text-sm font-semibold text-gray-700">
+                      {t('User ID / School UDISE / Email')}
                     </Label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500" />
                       <Input
                         id="userId"
                         type="text"
-                        placeholder={t('Enter your User ID or Email')}
+                        placeholder={t('Enter User ID, School UDISE or Email')}
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
-                        className="pl-12 h-12 sm:h-14 text-base border-2 border-orange-200 focus:border-orange-500 rounded-xl"
+                        className="pl-12 h-12 text-base border-2 border-orange-200 focus:border-orange-500 rounded-xl"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* 6-Digit PIN Input */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold text-gray-700 flex items-center gap-2">
-                      <Lock className="w-5 h-5 text-orange-500" />
-                      {t('6-Digit PIN')}
+                  {/* Password / 6-Digit PIN Input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-orange-500" />
+                      {t('Password / 6-Digit PIN')}
                     </Label>
-                    <div className="flex gap-2 justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border-2 border-orange-200">
-                      {pin.map((digit, index) => (
-                        <input
-                          key={index}
-                          ref={(el) => {
-                            pinRefs.current[index] = el;
-                          }}
-                          type="password"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(e) => handlePinChange(index, e.target.value)}
-                          onKeyDown={(e) => handlePinKeyDown(index, e)}
-                          className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold border-2 border-orange-300 rounded-xl focus:border-orange-500 focus:outline-none focus:ring-4 focus:ring-orange-500/20 transition-all bg-white hover:border-orange-400 shadow-sm"
-                          aria-label={`PIN digit ${index + 1}`}
-                        />
-                      ))}
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={t('Enter password or 6-digit PIN')}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-4 pr-12 h-12 text-base border-2 border-orange-200 focus:border-orange-500 rounded-xl"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
                     </div>
                   </div>
 
@@ -415,7 +349,7 @@ export default function Login() {
                       {isLoading ? t('Logging In...') : t('Login')}
                     </Button>
                   </div>
-                  <div className="pt-2 flex justify-center text-sm text-gray-600">
+                  <div className="pt-1 flex justify-center text-sm text-gray-600">
                     {t("Don't have an account?")}
                     <button type="button" onClick={() => setIsLogin(false)} className="ml-1 font-semibold text-orange-600 hover:text-orange-700 underline">
                       {t('Register')}
