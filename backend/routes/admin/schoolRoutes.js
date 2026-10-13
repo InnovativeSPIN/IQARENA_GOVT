@@ -8,17 +8,19 @@ import {
   updateSchool, 
   deleteSchool, 
   getSchoolStudents, 
-  importStudents 
+  importStudents,
+  bulkImportSchools,
 } from '../../controllers/admin/schoolController.js';
 import { 
   assignTestToSchool, 
   getTestAssignments, 
   deleteTestAssignment 
 } from '../../controllers/admin/schoolTestAssignmentController.js';
+import { schoolLogin } from '../../controllers/school/schoolAuthController.js';
 
 const router = express.Router();
 
-// Setup multer for CSV uploads
+// Setup multer for CSV/Excel uploads
 const upload = multer({ dest: 'uploads/temp/' });
 
 // Ensure directory exists
@@ -27,7 +29,11 @@ if (!fs.existsSync('uploads/temp/')) {
   fs.mkdirSync('uploads/temp/', { recursive: true });
 }
 
-// All school routes require ADMIN role
+// === Public Routes ===
+// School login using UDISE number + password
+router.post('/login', schoolLogin);
+
+// All school routes below require ADMIN role
 router.use(verifyAdmin);
 
 // School CRUD
@@ -36,6 +42,9 @@ router.get('/:id', getSchoolById);
 router.post('/', createSchool);
 router.put('/:id', updateSchool);
 router.delete('/:id', deleteSchool);
+
+// Bulk import schools from Excel (Theni district format)
+router.post('/bulk-import', upload.single('file'), bulkImportSchools);
 
 // School Students
 router.get('/:id/students', getSchoolStudents);
