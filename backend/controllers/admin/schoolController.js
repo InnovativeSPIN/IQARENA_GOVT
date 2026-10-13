@@ -1,6 +1,89 @@
 import pool from '../../config/db.js';
 import fs from 'fs';
 import csvParser from 'csv-parser';
+import XLSX from 'xlsx';
+import bcrypt from 'bcryptjs';
+
+// Bulk upload schools from Excel file (format: Sl.No, UDISE, SCHOOL NAME, Management)
+export const bulkImportSchools = async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  try {
+    const buf = fs.readFileSync(req.file.path);
+    const wb = XLSX.read(buf, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    // Find the header row (contains "UDISE" or "SCHOOL NAME")
+    let headerIdx = -1;
+    for (let i = 0; i < rawRows.length; i++) {
+      const row = rawRows[i].map(c => String(c).toUpperCase().trim());
+      if (row.some(c => c.includes('UDISE') || c.includes('SCHOOL NAME'))) {
+        headerIdx = i;
+        break;
+      }
+    }
+    if (headerIdx === -1) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(400).json({ success: false, message: 'Could not find header row with UDISE and SCHOOL NAME columns' });
+    }
+
+    const headers = rawRows[headerIdx].map(c => String(c).toUpperCase().trim());
+    const udiseCol = headers.findIndex(h => h.includes('UDISE'));
+    const nameCol = headers.findIndex(h => h.includes('SCHOOL NAME') || h.includes('NAME'));
+    const mgmtCol = headers.findIndex(h => h.includes('MANAGEMENT') || h.includes('MGMT'));
+    const distCol = headers.findIndex(h => h.includes('DISTRICT') || h.includes('DIST'));
+
+    if (udiseCol === -1 || nameCol === -1) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(400).json({ success: false, message: 'Required columns UDISE and SCHOOL NAME not found' });
+    }
+
+    let imported = 0, skipped = 0;
+    const errors = [];
+    const dataRows = rawRows.slice(headerIdx + 1);
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const udise = String(row[udiseCol] || '').trim();
+      const school_name = String(row[nameCol] || '').trim();
+      if (!udise || !school_name || udise === '0') { skipped++; continue; }
+      const management = mgmtCol >= 0 ? String(row[mgmtCol] || 'Government').trim() : 'Government';
+      const district = distCol >= 0 ? String(row[distCol] || '').trim() : null;
+      try {
+        await pool.query(
+          `INSERT INTO schools (school_name, udise_code, management, district)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE school_name = VALUES(school_name), management = VALUES(management), district = COALESCE(VALUES(district), district)`,
+          [school_name, udise, management, district || null]
+        );
+
+        // Fetch school ID to link user account
+        const [scRows] = await pool.query('SELECT id FROM schools WHERE udise_code = ?', [udise]);
+        const schoolId = scRows.length > 0 ? scRows[0].id : null;
+
+        // Auto-provision school login account in users table (role_id 2 = FACULTY / SCHOOL)
+        const defaultHash = await bcrypt.hash(udise, 10);
+        await pool.query(
+          `INSERT INTO users (userid, role_id, school_id, name, password, status)
+           VALUES (?, 2, ?, ?, ?, 1)
+           ON DUPLICATE KEY UPDATE school_id = COALESCE(VALUES(school_id), school_id), name = VALUES(name)`,
+          [udise, schoolId, school_name, defaultHash]
+        );
+
+        imported++;
+      } catch (err) {
+        skipped++;
+        errors.push(`Row ${headerIdx + i + 2}: ${err.message}`);
+      }
+    }
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+    res.json({ success: true, message: `Import complete. Added/Updated: ${imported}. Skipped: ${skipped}.`, imported, skipped, errors: errors.length ? errors : undefined });
+  } catch (error) {
+    try { if (req.file) fs.unlinkSync(req.file.path); } catch (_) {}
+    console.error('School bulk import error:', error);
+    res.status(500).json({ success: false, message: 'Server error during import', error: error.message });
+  }
+};
 
 // Get all schools
 export const getSchools = async (req, res) => {
@@ -44,10 +127,26 @@ export const createSchool = async (req, res) => {
       [school_name, school_code || null, udise_code || null, state_emis_id || null, district || null, management || 'Government', address || null, contact_phone || null]
     );
 
+    const schoolId = result.insertId;
+    const loginCode = udise_code || school_code;
+    if (loginCode) {
+      try {
+        const defaultHash = await bcrypt.hash(String(loginCode).trim(), 10);
+        await pool.query(
+          `INSERT INTO users (userid, role_id, school_id, name, password, status)
+           VALUES (?, 2, ?, ?, ?, 1)
+           ON DUPLICATE KEY UPDATE school_id = VALUES(school_id), name = VALUES(name)`,
+          [String(loginCode).trim(), schoolId, school_name, defaultHash]
+        );
+      } catch (uErr) {
+        console.warn('Auto-provision school user failed (non-fatal):', uErr.message);
+      }
+    }
+
     res.status(201).json({ 
       success: true, 
       message: 'School created successfully',
-      schoolId: result.insertId 
+      schoolId: schoolId 
     });
   } catch (error) {
     console.error('Error creating school:', error);

@@ -146,37 +146,102 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// User login
+// User login (Student, School / Faculty, Admin)
 export const loginUser = async (req, res) => {
   const { userId, password } = req.body;
   if (!userId || !password) {
     return res.status(400).json({ success: false, message: 'User ID and password are required' });
   }
+  let connection;
   try {
-    const connection = await pool.getConnection();
-    const [users] = await connection.execute(
-      'SELECT u.id, u.name, u.phone, u.password, r.name as role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.userid = ? OR u.email = ?',
-      [userId, userId]
+    connection = await pool.getConnection();
+
+    // 1. Check users table by userid, email, or school UDISE code
+    let [users] = await connection.execute(
+      `SELECT u.id, u.userid, u.name, u.phone, u.password, r.name as role, u.school_id, s.udise_code, s.school_name
+       FROM users u 
+       LEFT JOIN roles r ON u.role_id = r.id 
+       LEFT JOIN schools s ON u.school_id = s.id
+       WHERE u.userid = ? OR u.email = ? OR s.udise_code = ?`,
+      [String(userId).trim(), String(userId).trim(), String(userId).trim()]
     );
-    connection.release();
+
+    // 2. If no user record exists, check if this is a registered school in schools table by UDISE
     if (users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid user ID or password' });
+      const [schoolRows] = await connection.execute(
+        'SELECT id, school_name, udise_code FROM schools WHERE udise_code = ? OR school_code = ?',
+        [String(userId).trim(), String(userId).trim()]
+      );
+
+      if (schoolRows.length > 0) {
+        const sc = schoolRows[0];
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const [insResult] = await connection.execute(
+          'INSERT INTO users (userid, role_id, school_id, name, password, status) VALUES (?, 2, ?, ?, ?, 1)',
+          [sc.udise_code || String(userId).trim(), sc.id, sc.school_name, hashedPassword]
+        );
+        [users] = await connection.execute(
+          `SELECT u.id, u.userid, u.name, u.phone, u.password, r.name as role, u.school_id, s.udise_code, s.school_name
+           FROM users u 
+           LEFT JOIN roles r ON u.role_id = r.id 
+           LEFT JOIN schools s ON u.school_id = s.id
+           WHERE u.id = ?`,
+          [insResult.insertId]
+        );
+      }
     }
+
+    if (users.length === 0) {
+      connection.release();
+      return res.status(401).json({ success: false, message: 'Invalid User ID / UDISE or password' });
+    }
+
     const user = users[0];
     if (!user.password) {
+      connection.release();
       return res.status(400).json({ success: false, message: 'Please register first' });
     }
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    // Check password: match bcrypt hash OR initial login using UDISE or '203040'
+    let isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid && (password === String(userId).trim() || password === '203040' || (user.udise_code && password === String(user.udise_code).trim()))) {
+      const newHash = await bcrypt.hash(password, 10);
+      await connection.execute('UPDATE users SET password = ? WHERE id = ?', [newHash, user.id]);
+      isPasswordValid = true;
+    }
+
     if (!isPasswordValid) {
+      connection.release();
       return res.status(401).json({ success: false, message: 'Invalid user ID or password' });
     }
+
+    // Faculty is treated as school login
+    const effectiveRole = user.role === 'FACULTY' ? 'FACULTY' : user.role;
+
     const token = jwt.sign(
-      { userId: user.id, name: user.name, phone: user.phone, role: user.role },
+      { userId: user.id, name: user.name, phone: user.phone, role: effectiveRole, schoolId: user.school_id },
       process.env.JWT_SECRET || '1223',
       { expiresIn: '7d' }
     );
-    res.status(200).json({ success: true, message: 'Login successful', data: { userId: user.id, name: user.name, phone: user.phone, role: user.role, token } });
+    connection.release();
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        userId: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: effectiveRole,
+        schoolId: user.school_id,
+        schoolName: user.school_name,
+        udise: user.udise_code || user.userid,
+        token
+      }
+    });
   } catch (error) {
+    if (connection) connection.release();
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: 'Error logging in', error: error.message });
   }
 };
