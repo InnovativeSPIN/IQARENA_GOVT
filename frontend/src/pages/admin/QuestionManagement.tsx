@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminLayout } from '@/components/layout/AdminLayout';
@@ -35,12 +36,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -81,6 +84,21 @@ export default function QuestionManagement() {
   const [selectedExam, setSelectedExam] = useState<number | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<number | null>(null);
+  const [selectedSubtopic, setSelectedSubtopic] = useState<number | null>(null);
+  const [filterSubtopics, setFilterSubtopics] = useState<Array<{ id: number; name: string }>>([]);
+  const [loadingFilterSubtopics, setLoadingFilterSubtopics] = useState(false);
+  
+  // Custom Export Dialog state
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportExam, setExportExam] = useState<number | null>(null);
+  const [exportSubject, setExportSubject] = useState<number | null>(null);
+  const [exportTopic, setExportTopic] = useState<number | null>(null);
+  const [exportSubtopic, setExportSubtopic] = useState<number | null>(null);
+  const [exportSubjects, setExportSubjects] = useState<Array<{ id: number; name: string }>>([]);
+  const [exportTopics, setExportTopics] = useState<Array<{ id: number; name: string }>>([]);
+  const [exportSubtopics, setExportSubtopics] = useState<Array<{ id: number; name: string }>>([]);
+  const [isExporting, setIsExporting] = useState(false);
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -402,6 +420,108 @@ export default function QuestionManagement() {
     fetchTopics();
   }, [selectedSubject]);
 
+  // Fetch subtopics when filter topic changes
+  useEffect(() => {
+    if (!selectedTopic) {
+      setFilterSubtopics([]);
+      setSelectedSubtopic(null);
+      return;
+    }
+    const fetchSubtopics = async () => {
+      setLoadingFilterSubtopics(true);
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/subtopics?topicId=${selectedTopic}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.subtopics)) {
+          setFilterSubtopics(data.subtopics.map((s: any) => ({ id: Number(s.id), name: s.name })));
+        } else {
+          setFilterSubtopics([]);
+        }
+      } catch (err) {
+        console.error('Error fetching subtopics for filter:', err);
+        setFilterSubtopics([]);
+      } finally {
+        setLoadingFilterSubtopics(false);
+      }
+    };
+    fetchSubtopics();
+  }, [selectedTopic]);
+
+  // Export Dialog: Fetch subjects when exportExam changes
+  useEffect(() => {
+    if (!exportExam) {
+      setExportSubjects([]);
+      setExportSubject(null);
+      setExportTopics([]);
+      setExportTopic(null);
+      setExportSubtopics([]);
+      setExportSubtopic(null);
+      return;
+    }
+    const fetchExportSubjects = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/meta/subjects?examId=${exportExam}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.subjects)) {
+          setExportSubjects(data.subjects);
+        } else {
+          setExportSubjects([]);
+        }
+      } catch (err) {
+        console.error('Error fetching export subjects:', err);
+      }
+    };
+    fetchExportSubjects();
+  }, [exportExam]);
+
+  // Export Dialog: Fetch topics when exportSubject changes
+  useEffect(() => {
+    if (!exportSubject) {
+      setExportTopics([]);
+      setExportTopic(null);
+      setExportSubtopics([]);
+      setExportSubtopic(null);
+      return;
+    }
+    const fetchExportTopics = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/meta/topics?subjectId=${exportSubject}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.topics)) {
+          setExportTopics(data.topics);
+        } else {
+          setExportTopics([]);
+        }
+      } catch (err) {
+        console.error('Error fetching export topics:', err);
+      }
+    };
+    fetchExportTopics();
+  }, [exportSubject]);
+
+  // Export Dialog: Fetch subtopics when exportTopic changes
+  useEffect(() => {
+    if (!exportTopic) {
+      setExportSubtopics([]);
+      setExportSubtopic(null);
+      return;
+    }
+    const fetchExportSubtopics = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/subtopics?topicId=${exportTopic}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.subtopics)) {
+          setExportSubtopics(data.subtopics.map((s: any) => ({ id: Number(s.id), name: s.name })));
+        } else {
+          setExportSubtopics([]);
+        }
+      } catch (err) {
+        console.error('Error fetching export subtopics:', err);
+      }
+    };
+    fetchExportSubtopics();
+  }, [exportTopic]);
+
   // Fetch subjects for dialog when dialog exam changes
   useEffect(() => {
     if (!dialogExam) {
@@ -539,48 +659,133 @@ export default function QuestionManagement() {
     XLSX.writeFile(workbook, 'question_upload_template.xlsx');
   };
 
-  const handleExportQuestions = async () => {
-    if (filteredQuestions.length === 0) {
-      toast.error('No questions to export');
+  const exportQuestionsToExcel = async (questionsToExport: Question[], filename: string) => {
+    if (!questionsToExport || questionsToExport.length === 0) {
+      toast.error('No questions found to export');
       return;
     }
     
     try {
       const XLSX = (await import('xlsx'));
-      const exportData = filteredQuestions.map((q, index) => {
+      const exportData = questionsToExport.map((q, index) => {
+        const optA = getBilingualOption(q.optionA, q.optionATa);
+        const optB = getBilingualOption(q.optionB, q.optionBTa);
+        const optC = getBilingualOption(q.optionC, q.optionCTa);
+        const optD = getBilingualOption(q.optionD, q.optionDTa);
+        const expTa = getTamilExplanation(q.explanation, q.explanationTa);
+
         return {
           'Q.No': index + 1,
+          'Exam': q.examType || '',
+          'Subject': q.subjectName || '',
           'Topic': q.topicName || '',
+          'Subtopic': q.subtopicName || '',
           'Question (EN)': q.text || '',
-          'Question (TA)': '', // Empty by default for manual editing
-          'Option A (EN)': q.optionA || '',
-          'Option A (TA)': '',
-          'Option B (EN)': q.optionB || '',
-          'Option B (TA)': '',
-          'Option C (EN)': q.optionC || '',
-          'Option C (TA)': '',
-          'Option D (EN)': q.optionD || '',
-          'Option D (TA)': '',
+          'Question (TA)': q.textTa || '',
+          'Option A (EN)': optA.en || q.optionA || '',
+          'Option A (TA)': q.optionATa || optA.ta || '',
+          'Option B (EN)': optB.en || q.optionB || '',
+          'Option B (TA)': q.optionBTa || optB.ta || '',
+          'Option C (EN)': optC.en || q.optionC || '',
+          'Option C (TA)': q.optionCTa || optC.ta || '',
+          'Option D (EN)': optD.en || q.optionD || '',
+          'Option D (TA)': q.optionDTa || optD.ta || '',
           'Answer': q.correctAnswer || '',
           'Explanation': q.explanation || '',
+          'Explanation (TA)': q.explanationTa || expTa || '',
           'Marks': q.marks || 4,
         };
       });
 
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       worksheet['!cols'] = [
-        { wch: 6 }, { wch: 20 }, { wch: 40 }, { wch: 40 },
+        { wch: 6 }, { wch: 10 }, { wch: 18 }, { wch: 22 }, { wch: 22 },
+        { wch: 40 }, { wch: 40 },
         { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
         { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
-        { wch: 8 }, { wch: 30 }, { wch: 6 },
+        { wch: 8 }, { wch: 30 }, { wch: 30 }, { wch: 6 },
       ];
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Questions');
-      XLSX.writeFile(workbook, 'Question_Bank_Export.xlsx');
-      toast.success(`Exported ${filteredQuestions.length} questions successfully`);
+      const finalName = filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`;
+      XLSX.writeFile(workbook, finalName);
+      toast.success(`Exported ${questionsToExport.length} questions successfully`);
     } catch (err) {
       console.error('Export failed:', err);
       toast.error('Failed to export questions');
+    }
+  };
+
+  const handleExportCurrent = () => {
+    let name = 'Question_Bank_Export';
+    if (selectedSubtopic) {
+      const st = filterSubtopics.find(s => s.id === selectedSubtopic);
+      if (st) name = `Questions_Subtopic_${st.name.replace(/[^\w\d]/g, '_')}`;
+    } else if (selectedTopic) {
+      const t = topics.find(t => t.id === selectedTopic);
+      if (t) name = `Questions_Topic_${t.name.replace(/[^\w\d]/g, '_')}`;
+    } else if (selectedSubject) {
+      const s = subjects.find(s => s.id === selectedSubject);
+      if (s) name = `Questions_Subject_${s.name.replace(/[^\w\d]/g, '_')}`;
+    } else if (selectedExam) {
+      const e = examTypes.find(e => e.id === selectedExam);
+      if (e) name = `Questions_Exam_${e.name.replace(/[^\w\d]/g, '_')}`;
+    }
+    exportQuestionsToExcel(filteredQuestions, `${name}.xlsx`);
+  };
+
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    toast.info('Fetching all questions for export...');
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.questions)) {
+        await exportQuestionsToExcel(data.questions, 'Questions_All_Export.xlsx');
+      } else {
+        toast.error('No questions found to export');
+      }
+    } catch (err) {
+      toast.error('Failed to export all questions');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleCustomExport = async () => {
+    setIsExporting(true);
+    try {
+      let url = `${import.meta.env.VITE_API_URL}/admin/questions?`;
+      let filename = 'Questions_Custom_Export';
+      if (exportSubtopic) {
+        url += `subtopicId=${exportSubtopic}`;
+        const st = exportSubtopics.find(s => s.id === exportSubtopic);
+        if (st) filename = `Questions_Subtopic_${st.name.replace(/[^\w\d]/g, '_')}`;
+      } else if (exportTopic) {
+        url += `topicId=${exportTopic}`;
+        const t = exportTopics.find(t => t.id === exportTopic);
+        if (t) filename = `Questions_Topic_${t.name.replace(/[^\w\d]/g, '_')}`;
+      } else if (exportSubject) {
+        url += `subjectId=${exportSubject}`;
+        const s = exportSubjects.find(s => s.id === exportSubject);
+        if (s) filename = `Questions_Subject_${s.name.replace(/[^\w\d]/g, '_')}`;
+      } else if (exportExam) {
+        url += `examId=${exportExam}`;
+        const e = examTypes.find(e => e.id === exportExam);
+        if (e) filename = `Questions_Exam_${e.name.replace(/[^\w\d]/g, '_')}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.questions) && data.questions.length > 0) {
+        await exportQuestionsToExcel(data.questions, `${filename}.xlsx`);
+        setIsExportDialogOpen(false);
+      } else {
+        toast.error('No questions found for the selected criteria');
+      }
+    } catch (err) {
+      toast.error('Failed to export questions');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -701,7 +906,9 @@ export default function QuestionManagement() {
       setLoadingQuestions(true);
       try {
         let url = `${import.meta.env.VITE_API_URL}/admin/questions?`;
-        if (selectedTopic) {
+        if (selectedSubtopic) {
+          url += `subtopicId=${selectedSubtopic}`;
+        } else if (selectedTopic) {
           url += `topicId=${selectedTopic}`;
         } else if (selectedSubject) {
           url += `subjectId=${selectedSubject}`;
@@ -724,7 +931,7 @@ export default function QuestionManagement() {
       }
     };
     fetchQuestions();
-  }, [selectedExam, selectedSubject, selectedTopic, searchQuery]);
+  }, [selectedExam, selectedSubject, selectedTopic, selectedSubtopic, searchQuery]);
 
   // Use questions directly from API (already filtered)
   const filteredQuestions = questions;
@@ -786,6 +993,7 @@ export default function QuestionManagement() {
     setSelectedExam(null);
     setSelectedSubject(null);
     setSelectedTopic(null);
+    setSelectedSubtopic(null);
     setSearchQuery('');
   };
 
@@ -793,15 +1001,18 @@ export default function QuestionManagement() {
     setSelectedExam(examId);
     setSelectedSubject(null);
     setSelectedTopic(null);
+    setSelectedSubtopic(null);
   };
 
   const handleSubjectChange = (subjectId: number | null) => {
     setSelectedSubject(subjectId);
     setSelectedTopic(null);
+    setSelectedSubtopic(null);
   };
 
   const handleTopicChange = (topicId: number | null) => {
     setSelectedTopic(topicId);
+    setSelectedSubtopic(null);
   };
 
   const resetDialogState = (keepContext = false) => {
@@ -1824,10 +2035,39 @@ export default function QuestionManagement() {
             <FileText className="w-4 h-4 mr-2" />
             Bulk Upload
           </Button>
-          <Button variant="outline" onClick={handleExportQuestions}>
-            <FileText className="w-4 h-4 mr-2" />
-            Export ({filteredQuestions.length})
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={isExporting} className="gap-1.5">
+                <Download className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <span>Export ({filteredQuestions.length})</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem onClick={handleExportCurrent} className="cursor-pointer">
+                <FileText className="w-4 h-4 mr-2 text-orange-600" />
+                <div>
+                  <p className="font-medium text-xs">Export Current View</p>
+                  <p className="text-[10px] text-muted-foreground">{filteredQuestions.length} questions matching filters</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportAll} className="cursor-pointer">
+                <BookOpen className="w-4 h-4 mr-2 text-orange-600" />
+                <div>
+                  <p className="font-medium text-xs">Export All Questions</p>
+                  <p className="text-[10px] text-muted-foreground">Download full question bank</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="cursor-pointer">
+                <Search className="w-4 h-4 mr-2 text-orange-600" />
+                <div>
+                  <p className="font-medium text-xs">Export by Topic / Subtopic...</p>
+                  <p className="text-[10px] text-muted-foreground">Select specific topic or subtopic</p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
           
         </div>
@@ -1992,8 +2232,47 @@ export default function QuestionManagement() {
           </div>
         )}
 
-        
-        {(selectedExam || selectedSubject || selectedTopic) && (
+        {/* Subtopic Filter */}
+        {selectedTopic && filterSubtopics.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-foreground">Subtopics</h3>
+              {selectedSubtopic && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedSubtopic(null)}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3 h-3 mr-1" />
+                  All Subtopics
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {loadingFilterSubtopics ? (
+                <div className="text-xs text-muted-foreground">Loading subtopics...</div>
+              ) : filterSubtopics.map((subtopic) => {
+                const isSelected = selectedSubtopic === subtopic.id;
+                return (
+                  <button
+                    key={subtopic.id}
+                    onClick={() => setSelectedSubtopic(isSelected ? null : subtopic.id)}
+                    className={`px-4 py-2 rounded-full border text-xs font-semibold transition-all duration-200 transform hover:scale-105 ${
+                      isSelected
+                        ? 'border-orange-500 bg-orange-600 text-white shadow-md shadow-orange-500/30'
+                        : 'border-orange-200 hover:border-orange-400 bg-card hover:bg-orange-50 dark:hover:bg-orange-950/20 text-foreground'
+                    }`}
+                  >
+                    <span>{subtopic.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {(selectedExam || selectedSubject || selectedTopic || selectedSubtopic) && (
           <div className="flex flex-wrap items-center gap-2 p-4 rounded-lg bg-muted/50 border">
             <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
             {selectedExam && (
@@ -2013,6 +2292,7 @@ export default function QuestionManagement() {
                   onClick={() => {
                     setSelectedSubject(null);
                     setSelectedTopic(null);
+                    setSelectedSubtopic(null);
                   }}
                 />
               </Badge>
@@ -2022,7 +2302,19 @@ export default function QuestionManagement() {
                 {topics.find(t => t.id === selectedTopic)?.name}
                 <X 
                   className="w-3 h-3 cursor-pointer" 
-                  onClick={() => setSelectedTopic(null)}
+                  onClick={() => {
+                    setSelectedTopic(null);
+                    setSelectedSubtopic(null);
+                  }}
+                />
+              </Badge>
+            )}
+            {selectedSubtopic && (
+              <Badge variant="secondary" className="gap-1">
+                Subtopic: {filterSubtopics.find(s => s.id === selectedSubtopic)?.name}
+                <X 
+                  className="w-3 h-3 cursor-pointer" 
+                  onClick={() => setSelectedSubtopic(null)}
                 />
               </Badge>
             )}
@@ -3216,6 +3508,116 @@ export default function QuestionManagement() {
   </DialogContent>
 </Dialog>
 
+
+        {/* Custom Export by Topic / Subtopic Dialog */}
+        <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="w-5 h-5 text-orange-500" />
+                Export Questions by Topic / Subtopic
+              </DialogTitle>
+              <DialogDescription>
+                Select specific criteria to export questions. You can filter by Exam, Subject, Topic, or Subtopic. All exported files include both English and Tamil questions, options, and explanations.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3">
+              {/* Exam Select */}
+              <div className="space-y-2">
+                <Label>Exam Type</Label>
+                <Select
+                  value={exportExam ? String(exportExam) : 'all'}
+                  onValueChange={(val) => setExportExam(val === 'all' ? null : Number(val))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Exam Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Exam Types</SelectItem>
+                    {examTypes.map((e) => (
+                      <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Subject Select */}
+              <div className="space-y-2">
+                <Label>Subject</Label>
+                <Select
+                  value={exportSubject ? String(exportSubject) : 'all'}
+                  onValueChange={(val) => setExportSubject(val === 'all' ? null : Number(val))}
+                  disabled={!exportExam && exportSubjects.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={exportExam ? "All Subjects" : "Select Exam first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subjects</SelectItem>
+                    {exportSubjects.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Topic Select */}
+              <div className="space-y-2">
+                <Label>Topic</Label>
+                <Select
+                  value={exportTopic ? String(exportTopic) : 'all'}
+                  onValueChange={(val) => setExportTopic(val === 'all' ? null : Number(val))}
+                  disabled={!exportSubject && exportTopics.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={exportSubject ? "All Topics" : "Select Subject first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Topics</SelectItem>
+                    {exportTopics.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Subtopic Select */}
+              <div className="space-y-2">
+                <Label>Subtopic</Label>
+                <Select
+                  value={exportSubtopic ? String(exportSubtopic) : 'all'}
+                  onValueChange={(val) => setExportSubtopic(val === 'all' ? null : Number(val))}
+                  disabled={!exportTopic || exportSubtopics.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={exportTopic ? (exportSubtopics.length > 0 ? "All Subtopics" : "No Subtopics available") : "Select Topic first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subtopics</SelectItem>
+                    {exportSubtopics.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCustomExport}
+                disabled={isExporting}
+                className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+              >
+                <Download className="w-4 h-4" />
+                {isExporting ? 'Exporting...' : 'Download Excel (.xlsx)'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Image Zoom Dialog */}
         <Dialog open={isImageZoomOpen} onOpenChange={setIsImageZoomOpen}>
