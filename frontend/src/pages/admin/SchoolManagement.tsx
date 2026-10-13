@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { toast } from 'sonner';
-import { Trash2, Edit, Upload, UserPlus } from 'lucide-react';
+import { Trash2, Edit, Upload, FileSpreadsheet, RefreshCw } from 'lucide-react';
 
 type School = {
   id: number;
@@ -28,6 +28,11 @@ export default function SchoolManagement() {
   const [selectedSchoolForImport, setSelectedSchoolForImport] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+
+  // Bulk school import
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkImporting, setBulkImporting] = useState(false);
 
   useEffect(() => {
     fetchSchools();
@@ -79,6 +84,33 @@ export default function SchoolManagement() {
     }
   };
 
+  const handleBulkImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkFile) return;
+    setBulkImporting(true);
+    const form = new FormData();
+    form.append('file', bulkFile);
+    const token = localStorage.getItem('token');
+    try {
+      const data = await apiFetch('/admin/schools/bulk-import', {
+        method: 'POST',
+        body: form,
+      });
+      if (data.success) {
+        toast.success(data.message);
+        setBulkModal(false);
+        setBulkFile(null);
+        fetchSchools();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk import failed');
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !selectedSchoolForImport) return;
@@ -86,18 +118,12 @@ export default function SchoolManagement() {
     setImporting(true);
     const form = new FormData();
     form.append('file', file);
-    
-    const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch(`/api/admin/schools/${selectedSchoolForImport}/students/import`, {
+      const data = await apiFetch(`/admin/schools/${selectedSchoolForImport}/students/import`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: form
+        body: form,
       });
-      const data = await res.json();
       if (data.success) {
         toast.success(data.message);
         setImportModal(false);
@@ -118,14 +144,23 @@ export default function SchoolManagement() {
   return (
     <AdminLayout>
       <div className="p-6 max-w-6xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-3 flex-wrap">
           <h2 className="text-2xl font-bold text-gray-800">School Management</h2>
-          <button 
-            onClick={() => { setEditSchool(null); setFormData({ school_name: '', school_code: '', udise_code: '', state_emis_id: '', district: '', management: 'Government', contact_phone: '' }); setShowModal(true); }}
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90"
-          >
-            Add School
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setBulkModal(true)}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Bulk Import Schools
+            </button>
+            <button 
+              onClick={() => { setEditSchool(null); setFormData({ school_name: '', school_code: '', udise_code: '', state_emis_id: '', district: '', management: 'Government', contact_phone: '' }); setShowModal(true); }}
+              className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90"
+            >
+              Add School
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -224,13 +259,40 @@ export default function SchoolManagement() {
           </div>
         )}
 
-        {/* Import Students Modal */}
+        {/* Bulk Import Schools Modal */}
+        {bulkModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+              <h3 className="text-xl font-bold mb-2">Bulk Import Schools</h3>
+              <p className="text-sm text-gray-500 mb-1">Upload an Excel file in the <strong>Theni District format</strong>:</p>
+              <div className="bg-gray-50 border rounded p-2 text-xs font-mono mb-4 text-gray-700">
+                Sl.No | UDISE | SCHOOL NAME | Management
+              </div>
+              <p className="text-xs text-gray-400 mb-4">Accepts .xlsx or .xls. Existing schools (same UDISE) will be updated.</p>
+              <form onSubmit={handleBulkImport} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Excel File (.xlsx) *</label>
+                  <input type="file" accept=".xlsx,.xls" required className="w-full border p-2 rounded" onChange={e => setBulkFile(e.target.files?.[0] || null)} />
+                </div>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button type="button" onClick={() => { setBulkModal(false); setBulkFile(null); }} className="px-4 py-2 border rounded" disabled={bulkImporting}>Cancel</button>
+                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50 flex items-center gap-2" disabled={bulkImporting}>
+                    <FileSpreadsheet className="w-4 h-4" />
+                    {bulkImporting ? 'Importing...' : 'Import Schools'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Import Students (per school) Modal */}
         {importModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
               <h3 className="text-xl font-bold mb-4">Import Students (CSV)</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Upload a CSV file containing columns: <strong>emis_no, student_name, standard</strong>. Optional: section, phone.
+                Upload a CSV file with columns: <strong>emis_no, student_name, standard</strong>. Optional: section, phone.
               </p>
               <form onSubmit={handleImportSubmit} className="space-y-4">
                 <div>
@@ -251,3 +313,4 @@ export default function SchoolManagement() {
     </AdminLayout>
   );
 }
+
