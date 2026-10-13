@@ -54,8 +54,9 @@ export function LanguageSwitcher({ className, variant = 'default' }: LanguageSwi
   // Default pill switcher for TopNavbar and Student Layout
   return (
     <div
+      translate="no"
       className={cn(
-        'inline-flex items-center gap-1 p-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-xs',
+        'notranslate inline-flex items-center gap-1 p-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-xs',
         className
       )}
     >

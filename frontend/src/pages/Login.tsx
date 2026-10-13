@@ -143,15 +143,16 @@ export default function Login() {
       <div className="w-full max-w-5xl mx-auto flex flex-col items-center gap-5 sm:gap-6 z-10 my-auto">
         {/* TOP HEADER: Tamil Nadu Govt & NSCET Collaboration Header */}
         <header className="w-full">
-          <div className="bg-white/95 backdrop-blur-md border-2 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.38)] hover:shadow-[0_0_35px_rgba(16,185,129,0.55)] transition-all duration-300 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4">
-            {/* Left: TN Govt Emblem & Department Details */}
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="bg-white/95 backdrop-blur-md border-2 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.38)] hover:shadow-[0_0_35px_rgba(16,185,129,0.55)] transition-all duration-300 rounded-2xl p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-center sm:justify-between gap-3 sm:gap-4">
+            
+            {/* Main branding: Center logo & text on mobile, side-by-side on desktop */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto flex-1 min-w-0">
               <img 
                 src="/tn-govt-logo.png" 
                 alt="Government of Tamil Nadu" 
-                className="h-14 sm:h-16 w-auto object-contain shrink-0 drop-shadow-sm transition-transform hover:scale-105 duration-300" 
+                className="h-16 w-auto object-contain shrink-0 drop-shadow-sm transition-transform hover:scale-105 duration-300 mx-auto sm:mx-0" 
               />
-              <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+              <div className="flex flex-col items-center sm:items-start text-center sm:text-left gap-0.5 sm:gap-1 min-w-0 flex-1">
                 <span className="text-base sm:text-lg md:text-xl font-black text-slate-950 tracking-tight leading-snug">
                   முதன்மைக்கல்வி அலுவலகம், தேனி
                 </span>
@@ -159,12 +160,18 @@ export default function Login() {
                   CHIEF EDUCATIONAL OFFICE, THENI
                 </span>
               </div>
+
+              {/* Desktop Language Switcher (hidden on mobile) */}
+              <div className="hidden sm:flex items-center shrink-0">
+                <LanguageSwitcher />
+              </div>
             </div>
 
-            {/* Right: Language Switcher */}
-            <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+            {/* Mobile Language Switcher: Centered below text with clean divider */}
+            <div className="flex sm:hidden items-center justify-center w-full pt-2.5 border-t border-emerald-100/80">
               <LanguageSwitcher />
             </div>
+
           </div>
         </header>
 
