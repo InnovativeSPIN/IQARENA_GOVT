@@ -43,7 +43,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type UserRole = 'admin' | 'faculty' | 'student';
+type UserRole = 'admin' | 'faculty' | 'school' | 'student';
 type UserStatus = 'active' | 'inactive';
 
 type User = {
@@ -120,15 +120,16 @@ export default function UserManagement() {
   const [schools, setSchools] = useState<any[]>([]);
   const [examTypes, setExamTypes] = useState<any[]>([]);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
-  const [bulkUploadTab, setBulkUploadTab] = useState<'student' | 'faculty'>('student');
+  const [bulkUploadTab, setBulkUploadTab] = useState<'student' | 'school'>('student');
   const [bulkForm, setBulkForm] = useState({ school_id: '', standard: '', section: '', batch_year: '', exam_id: '' });
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [bulkPreviewData, setBulkPreviewData] = useState<any[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  const roleColors: Record<UserRole, string> = {
+  const roleColors: Record<string, string> = {
     admin: 'bg-primary/10 text-primary border-primary/20',
+    school: 'bg-info/10 text-info border-info/20',
     faculty: 'bg-info/10 text-info border-info/20',
     student: 'bg-success/10 text-success border-success/20',
   };
@@ -216,7 +217,7 @@ export default function UserManagement() {
   const userCounts = useMemo(() => ({
     all: users.length,
     admin: users.filter((u) => u.role === 'admin').length,
-    faculty: users.filter((u) => u.role === 'faculty').length,
+    school: users.filter((u) => u.role === 'faculty' || u.role === 'school').length,
     student: users.filter((u) => u.role === 'student').length,
   }), [users]);
 
@@ -235,7 +236,13 @@ export default function UserManagement() {
   const filteredUsers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return users.filter((user) => {
-      if (roleFilter && user.role !== roleFilter) return false;
+      if (roleFilter) {
+        if (roleFilter === 'faculty' || roleFilter === 'school') {
+          if (user.role !== 'faculty' && user.role !== 'school') return false;
+        } else if (user.role !== roleFilter) {
+          return false;
+        }
+      }
       if (statusFilter !== 'all' && user.status !== statusFilter) return false;
       if (q) {
         const inName = user.name.toLowerCase().includes(q);
@@ -249,8 +256,8 @@ export default function UserManagement() {
         if (classFilter !== 'all' && user.standard !== classFilter) return false;
         if (schoolFilter !== 'all' && user.schoolId !== schoolFilter) return false;
       }
-      // for admin/faculty we ignore exam/class filters, but faculty might have schoolFilter
-      if (user.role === 'faculty') {
+      // for admin/school(faculty) we ignore exam/class filters, but school might have schoolFilter
+      if (user.role === 'faculty' || user.role === 'school') {
         if (schoolFilter !== 'all' && user.schoolId !== schoolFilter) return false;
       }
       return true;
@@ -297,8 +304,8 @@ export default function UserManagement() {
       return;
     }
 
-    if (createForm.role === 'faculty' && !createForm.school_id) {
-      alert('School is required for Faculty');
+    if ((createForm.role === 'faculty' || createForm.role === 'school') && !createForm.school_id) {
+      alert('School is required for School login');
       return;
     }
 
@@ -392,7 +399,7 @@ export default function UserManagement() {
       }
     } else {
       if (!bulkFile) {
-        alert('Please select a CSV file for Faculty upload');
+        alert('Please select a CSV file for School upload');
         return;
       }
     }
@@ -445,19 +452,14 @@ export default function UserManagement() {
         form.append('exam_id', bulkForm.exam_id);
       }
 
-      const token = localStorage.getItem('token');
       const endpoint = bulkUploadTab === 'student'
-        ? `/api/admin/schools/${bulkForm.school_id}/students/import`
-        : `/api/admin/users/import-faculty`;
+        ? `/admin/schools/${bulkForm.school_id}/students/import`
+        : `/admin/users/import-faculty`;
 
-      const res = await fetch(endpoint, {
+      const data = await apiFetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: form
       });
-      const data = await res.json();
       if (data.success) {
         alert(data.message);
         setIsPreviewOpen(false);
@@ -494,7 +496,7 @@ export default function UserManagement() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="page-header mb-0">
             <h1 className="page-title">User Management</h1>
-            <p className="page-subtitle">Manage admins, faculty, and students</p>
+            <p className="page-subtitle">Manage admins, schools, and students</p>
           </div>
 
           <div className="flex gap-2">
@@ -523,12 +525,12 @@ export default function UserManagement() {
                         </Button>
                         <Button
                           type="button"
-                          variant={bulkUploadTab === 'faculty' ? 'default' : 'outline'}
+                          variant={bulkUploadTab === 'school' ? 'default' : 'outline'}
                           size="sm"
-                          onClick={() => setBulkUploadTab('faculty')}
+                          onClick={() => setBulkUploadTab('school')}
                           className="rounded-full px-6"
                         >
-                          Faculty
+                          School
                         </Button>
                       </div>
 
@@ -545,13 +547,13 @@ export default function UserManagement() {
                         </>
                       ) : (
                         <>
-                          Upload a CSV file to add multiple faculty members to a school. <br />
+                          Upload a CSV file to add school login accounts. <br />
                           <a
-                            href="data:text/csv;charset=utf-8,udise_code,faculty_name,phone,email\n"
-                            download="faculty_template.csv"
+                            href="data:text/csv;charset=utf-8,udise_code,school_name,phone,email\n"
+                            download="school_template.csv"
                             className="text-primary underline hover:text-primary/80 mt-1 inline-block"
                           >
-                            Download Faculty Template
+                            Download School Template
                           </a>
                         </>
                       )}
@@ -602,7 +604,7 @@ export default function UserManagement() {
                     </>
                   )}
                   <div className="space-y-2 pt-2">
-                    <Label>CSV File * {bulkUploadTab === 'student' ? '(Columns: emis_no, student_name)' : '(Columns: udise_code, faculty_name)'}</Label>
+                    <Label>CSV File * {bulkUploadTab === 'student' ? '(Columns: emis_no, student_name)' : '(Columns: udise_code, school_name)'}</Label>
                     <Input type="file" accept=".csv" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} required />
                   </div>
                   <div className="flex justify-end pt-4">
@@ -683,7 +685,7 @@ export default function UserManagement() {
                     setCreateForm({
                       userid: '',
                       name: '',
-                      role: roleFilter === 'admin' ? 'admin' : (roleFilter === 'faculty' ? 'faculty' : 'student'),
+                      role: roleFilter === 'admin' ? 'admin' : (roleFilter === 'faculty' || roleFilter === 'school' ? 'faculty' : 'student'),
                       email: '',
                       phone: '',
                       school_id: schools.length > 0 ? String(schools[0].id) : '',
@@ -760,7 +762,7 @@ export default function UserManagement() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="faculty">Faculty</SelectItem>
+                          <SelectItem value="faculty">School Login</SelectItem>
                           <SelectItem value="student">Student</SelectItem>
                         </SelectContent>
                       </Select>
@@ -789,12 +791,20 @@ export default function UserManagement() {
                     />
                   </div>
 
-                  {createForm.role === 'faculty' && (
+                  {(createForm.role === 'faculty' || createForm.role === 'school') && (
                     <div className="space-y-2">
                       <Label htmlFor="school">School (SPOC) <span className="text-destructive">*</span></Label>
                       <Select
                         value={createForm.school_id}
-                        onValueChange={(v) => setCreateForm((p) => ({ ...p, school_id: v }))}
+                        onValueChange={(v) => {
+                          const chosen = schools.find((s) => String(s.id) === v);
+                          setCreateForm((p) => ({
+                            ...p,
+                            school_id: v,
+                            userid: !selectedForEdit && chosen?.udise_code ? chosen.udise_code : p.userid,
+                            name: !selectedForEdit && chosen?.school_name && (!p.name || p.name === 'John Doe') ? chosen.school_name : p.name
+                          }));
+                        }}
                         required
                       >
                         <SelectTrigger>
@@ -918,7 +928,7 @@ export default function UserManagement() {
           <div className="flex gap-2">
             {[
               { label: 'Admin', value: 'admin' as UserRole, count: userCounts.admin },
-              { label: 'Faculty', value: 'faculty' as UserRole, count: userCounts.faculty },
+              { label: 'School', value: 'faculty' as UserRole, count: userCounts.school },
               { label: 'Student', value: 'student' as UserRole, count: userCounts.student },
             ].map((r) => (
               <Button
@@ -935,7 +945,7 @@ export default function UserManagement() {
             ))}
           </div>
 
-          {(roleFilter === 'student' || roleFilter === 'faculty') && (
+          {(roleFilter === 'student' || roleFilter === 'faculty' || roleFilter === 'school') && (
             <div className="flex items-center gap-2">
               <Select value={schoolFilter} onValueChange={(v) => setSchoolFilter(v)}>
                 <SelectTrigger className="w-[250px] rounded-xl border-gray-200 bg-white shadow-sm">
@@ -1155,8 +1165,8 @@ export default function UserManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <Badge variant="outline" className={roleColors[user.role]}>
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      <Badge variant="outline" className={roleColors[(user.role || '').toLowerCase()] || roleColors.school}>
+                        {(user.role || '').toLowerCase() === 'faculty' || (user.role || '').toLowerCase() === 'school' ? 'School' : user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                       </Badge>
                     </td>
                     <td className="px-6 py-4">
