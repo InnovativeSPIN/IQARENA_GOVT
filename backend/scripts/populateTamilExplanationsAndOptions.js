@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import pool from '../config/db.js';
 
 const explanationTranslations = {
   'Chandragupta Maurya founded Mauryan Empire ~321 BCE. Defeated Nanda Dynasty and Seleucus I. Grandfather of Ashoka. Capital: Pataliputra (Patna).':
@@ -248,15 +248,7 @@ function getTamilExplanation(exp) {
 }
 
 async function run() {
-  const conn = await mysql.createConnection({
-    host: '127.0.0.1',
-    port: 3307,
-    user: 'root',
-    password: '21515219',
-    database: 'tmhnuiqarena'
-  });
-
-  const [questions] = await conn.query('SELECT id, option_a, option_a_ta, option_b, option_b_ta, option_c, option_c_ta, option_d, option_d_ta, explanation, explanation_ta FROM questions');
+  const [questions] = await pool.query('SELECT id, option_a, option_a_ta, option_b, option_b_ta, option_c, option_c_ta, option_d, option_d_ta, explanation, explanation_ta FROM questions');
   console.log(`Processing ${questions.length} questions...`);
 
   let updatedExplanations = 0;
@@ -278,7 +270,7 @@ async function run() {
     );
 
     if (needsExpUpdate || needsOptUpdate) {
-      await conn.query(
+      await pool.query(
         `UPDATE questions SET explanation_ta = COALESCE(?, explanation_ta), option_a_ta = ?, option_b_ta = ?, option_c_ta = ?, option_d_ta = ? WHERE id = ?`,
         [taExp || null, optATa, optBTa, optCTa, optDTa, q.id]
       );
@@ -288,7 +280,7 @@ async function run() {
   }
 
   console.log(`Successfully updated ${updatedExplanations} explanations and ${updatedOptions} options.`);
-  await conn.end();
+  process.exit(0);
 }
 
 run().catch(err => {
