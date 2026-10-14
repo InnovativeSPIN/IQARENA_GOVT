@@ -10,7 +10,9 @@ import {
   BookOpen,
   GraduationCap,
   Award,
-  FileText
+  FileText,
+  BellRing,
+  Play
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +22,6 @@ import MilestoneCard, { MilestoneItem } from '@/components/student/MilestoneCard
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState, useMemo } from 'react';
 import { apiFetch } from '@/lib/api';
-import NewTestPopup from '@/components/student/NewTestPopup';
 import {
   BarChart,
   Bar,
@@ -542,6 +543,37 @@ export default function StudentDashboard() {
     return upcomingTests.find(t => !t.isAlreadyAttempted) || null;
   }, [upcomingTests]);
 
+  // Active / Live test available to start right now
+  const activeLiveTest = useMemo(() => {
+    // 1. Check upcoming tests from stats API
+    const liveFromUpcoming = upcomingTests.find(
+      t => (t.isLive || (!t.startTime && t.status === 'published')) && !t.isAlreadyAttempted
+    );
+    if (liveFromUpcoming) return liveFromUpcoming;
+
+    // 2. Fallback to assigned tests API
+    if (assignedTests && assignedTests.length > 0) {
+      const activeAssigned = assignedTests.find(
+        (t: any) => t.isActive && t.status !== 'submitted'
+      );
+      if (activeAssigned) {
+        return {
+          id: activeAssigned.id,
+          title: activeAssigned.title,
+          examType: activeAssigned.examType,
+          duration: activeAssigned.duration,
+          totalMarks: activeAssigned.totalMarks,
+          startTime: activeAssigned.startTime,
+          endTime: activeAssigned.endTime,
+          isLive: true,
+          status: activeAssigned.status,
+        };
+      }
+    }
+
+    return null;
+  }, [upcomingTests, assignedTests]);
+
   // Character companion state — fully data-driven, authentic student state mapping
   const mascotState = useMemo<{ mood: MascotMood; msg: string }>(() => {
     // 1. Initial journey state
@@ -676,8 +708,68 @@ export default function StudentDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <StudentLayout>
-      <NewTestPopup />
       <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto pb-10">
+
+        {/* ══════════════════════════════════════════════════════════════
+            ACTIVE / LIVE TEST ALERT BANNER
+        ══════════════════════════════════════════════════════════════ */}
+        {activeLiveTest && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-rose-500 p-[2px] shadow-xl shadow-orange-500/20 animate-in fade-in slide-in-from-top-3 duration-300">
+            <div className="relative rounded-[14px] bg-gradient-to-r from-orange-50 via-amber-50/60 to-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-orange-500/30">
+                    <BellRing className="w-6 h-6 animate-bounce" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-600"></span>
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500 text-white shadow-sm uppercase tracking-wider animate-pulse">
+                      ● Live Test Available
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-orange-100 text-orange-800">
+                      {activeLiveTest.examType}
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1 truncate">
+                    {activeLiveTest.title}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 mt-0.5">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-orange-600" />
+                      {activeLiveTest.duration} mins
+                    </span>
+                    {activeLiveTest.totalMarks > 0 && (
+                      <span className="flex items-center gap-1 font-medium">
+                        <Award className="w-3.5 h-3.5 text-amber-600" />
+                        {activeLiveTest.totalMarks} Marks
+                      </span>
+                    )}
+                    {activeLiveTest.endTime && (
+                      <span className="text-slate-500">
+                        Closes: {new Date(activeLiveTest.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 sm:self-center shrink-0 w-full sm:w-auto">
+                <button
+                  onClick={() => navigate(`/student/exam/${activeLiveTest.id}`)}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/30 hover:shadow-orange-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  Start Test Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ══════════════════════════════════════════════════════════════
             SECTION 1 · PERSONAL HERO
@@ -1299,7 +1391,6 @@ export default function StudentDashboard() {
         </section>
 
       </div>
-      <NewTestPopup />
     </StudentLayout>
   );
 }
