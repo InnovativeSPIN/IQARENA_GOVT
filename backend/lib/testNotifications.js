@@ -88,7 +88,7 @@ export async function notifyStudentsForTest(testId) {
     const values = students.map(s => [s.user_id, test.id, 'exam_reminder', `New test: ${test.title}`, message]);
 
     // Also notify faculty
-    const facultyClauses = ['r.role_name = "FACULTY"'];
+    const facultyClauses = ['r.name = "FACULTY"'];
     const facultyParams = [];
     if (schoolIds.length > 0) {
       facultyClauses.push(`u.school_id IN (${schoolIds.map(() => '?').join(',')})`);
