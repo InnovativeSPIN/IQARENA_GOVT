@@ -221,12 +221,25 @@ export default function SubjectManagement() {
   };
 
   const handleDeleteSubject = async (s: Subject) => {
-    if (!confirm(`Delete subject ${s.name}? This is permanent.`)) return;
+    const hasTopics = (s.topicCount ?? 0) > 0;
+    const confirmMsg = hasTopics
+      ? `Deleting subject "${s.name}" will also permanently delete all its ${s.topicCount} topic(s) and all questions associated with them.\n\nAre you sure you want to proceed and delete this subject with all questions?`
+      : `Are you sure you want to permanently delete subject "${s.name}"?`;
+
+    if (!confirm(confirmMsg)) return;
     try {
-      await apiFetch(`/admin/subjects/${s.id}`, { method: 'DELETE' });
+      const res = await apiFetch<{ success: boolean; message?: string; deleted?: { topicCount: number; questionCount: number } }>(
+        `/admin/subjects/${s.id}?force=true`,
+        { method: 'DELETE' }
+      );
+      if (res?.success) {
+        if (res.deleted) {
+          alert(`Subject "${s.name}" deleted successfully.\nTopics removed: ${res.deleted.topicCount}\nQuestions removed: ${res.deleted.questionCount}`);
+        }
+      }
       await refreshSubjects();
       await refreshAllocations();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete subject', err);
       alert(err.message || 'Failed to delete subject');
     }

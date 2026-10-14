@@ -296,9 +296,12 @@ export default function QuestionManagement() {
   // Bulk preview state
   type BulkRow = {
     _rowIndex: number;
+    subtopic: string;
+    subtopicId: number | null;
     topic: string;
     topicId: number | null;
     topicMatch: 'matched' | 'unmatched' | 'skipped';
+    matchedLabel?: string;
     questionEN: string;
     questionTA: string;
     optionAEN: string; optionATA: string;
@@ -312,7 +315,8 @@ export default function QuestionManagement() {
   const [bulkPreviewRows, setBulkPreviewRows] = useState<BulkRow[]>([]);
   const [bulkPreviewStep, setBulkPreviewStep] = useState<'select' | 'preview'>('select');
   const [bulkEditingIdx, setBulkEditingIdx] = useState<number | null>(null);
-  const [bulkAllTopics, setBulkAllTopics] = useState<Array<{ id: number; name: string }>>([]);
+  const [bulkAllTopics, setBulkAllTopics] = useState<Array<{ id: number; name: string; subjectId?: number }>>([]);
+  const [bulkAllSubtopics, setBulkAllSubtopics] = useState<Array<{ id: number; name: string; topicId: number; topicName?: string }>>([]);
   const [bulkParseError, setBulkParseError] = useState<string>('');
 
   // Fetch exams on mount
@@ -630,26 +634,27 @@ export default function QuestionManagement() {
     const templateData = [
       {
         'Q.No': 1,
-        'Topic': 'General Knowledge',
-        'Question (EN)': 'What is 2+2?',
-        'Question (TA)': '2+2 என்பது என்ன?',
-        'Option A (EN)': '3',
-        'Option A (TA)': '3',
-        'Option B (EN)': '4',
-        'Option B (TA)': '4',
-        'Option C (EN)': '5',
-        'Option C (TA)': '5',
-        'Option D (EN)': '6',
-        'Option D (TA)': '6',
+        'Topic': 'Science',
+        'Subtopic': 'Cell & Tissues',
+        'Question (EN)': 'What is the powerhouse of the cell?',
+        'Question (TA)': 'செல்லின் ஆற்றல் மையம் எது?',
+        'Option A (EN)': 'Nucleus',
+        'Option A (TA)': 'உட்கரு',
+        'Option B (EN)': 'Mitochondria',
+        'Option B (TA)': 'மைட்டோகாண்ட்ரியா',
+        'Option C (EN)': 'Ribosome',
+        'Option C (TA)': 'ரைபோசோம்',
+        'Option D (EN)': 'Golgi apparatus',
+        'Option D (TA)': 'கோல்கி உறுப்பு',
         'Answer': 'B',
-        'Explanation': 'Basic addition',
+        'Explanation': 'Mitochondria produces cellular energy (ATP).',
         'Marks': 4,
       }
     ];
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     // Set column widths
     worksheet['!cols'] = [
-      { wch: 6 }, { wch: 20 }, { wch: 40 }, { wch: 40 },
+      { wch: 6 }, { wch: 20 }, { wch: 22 }, { wch: 40 }, { wch: 40 },
       { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
       { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 },
       { wch: 8 }, { wch: 30 }, { wch: 6 },
@@ -789,20 +794,60 @@ export default function QuestionManagement() {
     }
   };
 
-  // Parse XLSX file client-side → build preview rows with topic mapping
+  // Helper to normalize string for lenient matching
+  const normalizeMatchName = (s: string) =>
+    String(s || '')
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^\w\d\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  // Parse XLSX file client-side → build preview rows with subtopic & topic mapping
   const handleParseXlsx = async (file: File) => {
     setBulkParseError('');
     setBulkPreviewRows([]);
     try {
-      // Fetch all topics for matching
-      let allTopics: Array<{ id: number; name: string }> = bulkAllTopics;
+      // Fetch all topics and subtopics for matching
+      let allTopics = bulkAllTopics;
+      let allSubtopics = bulkAllSubtopics;
+
+      const fetches: Promise<any>[] = [];
       if (allTopics.length === 0) {
-        const tRes = await fetch(`${import.meta.env.VITE_API_URL}/admin/topics`);
-        const tData = await tRes.json();
-        if (tData.success && Array.isArray(tData.topics)) {
-          allTopics = tData.topics.map((t: any) => ({ id: t.id, name: t.topic_name || t.name || '' }));
-          setBulkAllTopics(allTopics);
-        }
+        fetches.push(
+          fetch(`${import.meta.env.VITE_API_URL}/admin/topics`)
+            .then(r => r.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.topics)) {
+                allTopics = data.topics.map((t: any) => ({
+                  id: Number(t.id),
+                  name: t.topic_name || t.name || '',
+                  subjectId: t.subject_id,
+                }));
+                setBulkAllTopics(allTopics);
+              }
+            })
+        );
+      }
+      if (allSubtopics.length === 0) {
+        fetches.push(
+          fetch(`${import.meta.env.VITE_API_URL}/admin/subtopics`)
+            .then(r => r.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.subtopics)) {
+                allSubtopics = data.subtopics.map((st: any) => ({
+                  id: Number(st.id),
+                  name: st.name || st.subtopic_name || '',
+                  topicId: Number(st.topicId || st.topic_id),
+                  topicName: st.topicName || st.topic_name || '',
+                }));
+                setBulkAllSubtopics(allSubtopics);
+              }
+            })
+        );
+      }
+      if (fetches.length > 0) {
+        await Promise.all(fetches);
       }
 
       const XLSX = await import('xlsx');
@@ -816,14 +861,101 @@ export default function QuestionManagement() {
         return;
       }
 
-      const rows = rawRows.map((r, i) => {
-        const topicName = String(r['Topic'] || r['topic'] || '').trim();
-        const matched = allTopics.find(t => t.name.toLowerCase() === topicName.toLowerCase());
+      const rows: BulkRow[] = rawRows.map((r, i) => {
+        const rawSubtopic = String(
+          r['Subtopic'] || r['subtopic'] || r['Sub-Topic'] || r['Sub Topic'] || ''
+        ).trim();
+        const rawTopic = String(r['Topic'] || r['topic'] || '').trim();
+        const candidate = rawSubtopic || rawTopic;
+
+        let matchedSub = null;
+        let matchedTop = null;
+        let subtopicId: number | null = null;
+        let subtopicName = rawSubtopic;
+        let topicId: number | null = dialogTopic || null;
+        let topicName = rawTopic;
+        let matchStatus: 'matched' | 'unmatched' | 'skipped' = 'unmatched';
+        let matchedLabel = '';
+
+        if (candidate) {
+          const normCandidate = normalizeMatchName(candidate);
+
+          // 1. If dialogTopic is selected, try matching among its subtopics first
+          if (dialogTopic) {
+            matchedSub = allSubtopics.find(
+              st => st.topicId === dialogTopic && normalizeMatchName(st.name) === normCandidate
+            );
+          }
+
+          // 2. Try matching any subtopic in allSubtopics
+          if (!matchedSub) {
+            matchedSub = allSubtopics.find(
+              st => normalizeMatchName(st.name) === normCandidate
+            );
+          }
+
+          if (matchedSub) {
+            subtopicId = matchedSub.id;
+            subtopicName = matchedSub.name;
+            topicId = matchedSub.topicId;
+            topicName =
+              matchedSub.topicName ||
+              allTopics.find(t => t.id === matchedSub.topicId)?.name ||
+              topicName;
+            matchStatus = 'matched';
+            matchedLabel = `Subtopic: ${matchedSub.name}`;
+          } else {
+            // 3. If no subtopic matched, try matching a topic
+            matchedTop = allTopics.find(
+              t => normalizeMatchName(t.name) === normCandidate
+            );
+            if (matchedTop) {
+              topicId = matchedTop.id;
+              topicName = matchedTop.name;
+              subtopicId = dialogSubtopic || null;
+              subtopicName =
+                allSubtopics.find(st => st.id === dialogSubtopic)?.name || '';
+              matchStatus = 'matched';
+              matchedLabel = `Topic: ${matchedTop.name}`;
+            } else if (dialogSubtopic) {
+              // User explicitly selected a subtopic from dropdown
+              subtopicId = dialogSubtopic;
+              subtopicName =
+                allSubtopics.find(st => st.id === dialogSubtopic)?.name || candidate;
+              topicId = dialogTopic || topicId;
+              matchStatus = 'matched';
+            } else if (dialogTopic) {
+              // Topic is selected, subtopic not found
+              topicId = dialogTopic;
+              topicName = allTopics.find(t => t.id === dialogTopic)?.name || topicName;
+              subtopicName = candidate;
+              matchStatus = 'unmatched';
+            } else {
+              matchStatus = 'unmatched';
+            }
+          }
+        } else {
+          // No topic or subtopic specified in the row
+          if (dialogTopic) {
+            topicId = dialogTopic;
+            subtopicId = dialogSubtopic || null;
+            subtopicName =
+              allSubtopics.find(st => st.id === dialogSubtopic)?.name || '';
+            topicName = allTopics.find(t => t.id === dialogTopic)?.name || '';
+            matchStatus = 'matched';
+          } else {
+            matchStatus = 'skipped';
+          }
+        }
+
         return {
           _rowIndex: i,
+          subtopic: subtopicName,
+          subtopicId: subtopicId,
           topic: topicName,
-          topicId: matched ? matched.id : null,
-          topicMatch: matched ? ('matched' as const) : (topicName ? 'unmatched' as const : 'skipped' as const),
+          topicId: topicId,
+          topicMatch: matchStatus,
+          matchedLabel: matchedLabel,
           questionEN: String(r['Question (EN)'] || r['question'] || '').trim(),
           questionTA: String(r['Question (TA)'] || '').trim(),
           optionAEN: String(r['Option A (EN)'] || r['option_a'] || '').trim(),
@@ -847,29 +979,127 @@ export default function QuestionManagement() {
     }
   };
 
+  // Re-match preview rows whenever the user changes Topic or Subtopic dropdowns in the dialog
+  useEffect(() => {
+    if (bulkPreviewRows.length === 0 || bulkAllSubtopics.length === 0) return;
+
+    setBulkPreviewRows(prev =>
+      prev.map(row => {
+        const candidate = String(row.subtopic || row.topic || '').trim();
+        const normCandidate = normalizeMatchName(candidate);
+
+        if (!candidate && dialogTopic) {
+          return {
+            ...row,
+            topicId: dialogTopic,
+            subtopicId: dialogSubtopic || null,
+            subtopic: dialogSubtopics.find(s => s.id === dialogSubtopic)?.name || '',
+            topic: dialogTopics.find(t => t.id === dialogTopic)?.name || row.topic,
+            topicMatch: 'matched',
+          };
+        }
+
+        if (candidate) {
+          let matchedSub = null;
+          // Check under current dialogTopic first
+          if (dialogTopic) {
+            matchedSub = bulkAllSubtopics.find(
+              st => st.topicId === dialogTopic && normalizeMatchName(st.name) === normCandidate
+            );
+          }
+          // Check across all subtopics
+          if (!matchedSub) {
+            matchedSub = bulkAllSubtopics.find(
+              st => normalizeMatchName(st.name) === normCandidate
+            );
+          }
+
+          if (matchedSub) {
+            return {
+              ...row,
+              subtopicId: matchedSub.id,
+              subtopic: matchedSub.name,
+              topicId: matchedSub.topicId,
+              topic:
+                matchedSub.topicName ||
+                bulkAllTopics.find(t => t.id === matchedSub.topicId)?.name ||
+                row.topic,
+              topicMatch: 'matched',
+              matchedLabel: `Subtopic: ${matchedSub.name}`,
+            };
+          }
+
+          // Check if candidate matches a topic
+          const matchedTop = bulkAllTopics.find(
+            t => normalizeMatchName(t.name) === normCandidate
+          );
+          if (matchedTop) {
+            return {
+              ...row,
+              topicId: matchedTop.id,
+              topic: matchedTop.name,
+              subtopicId: dialogSubtopic || null,
+              topicMatch: 'matched',
+              matchedLabel: `Topic: ${matchedTop.name}`,
+            };
+          }
+
+          // If user explicitly picked a subtopic from dropdown
+          if (dialogSubtopic) {
+            return {
+              ...row,
+              topicId: dialogTopic || row.topicId,
+              subtopicId: dialogSubtopic,
+              subtopic: dialogSubtopics.find(s => s.id === dialogSubtopic)?.name || row.subtopic,
+              topicMatch: 'matched',
+            };
+          }
+        }
+        return row;
+      })
+    );
+  }, [dialogTopic, dialogSubtopic]);
+
   // Confirmed upload — send parsed (and possibly edited) rows as JSON payload
   const handleBulkUploadConfirmed = async () => {
-    const validRows = bulkPreviewRows.filter(r => r.topicMatch === 'matched' && (r.questionEN || r.questionTA));
+    const validRows = bulkPreviewRows.filter(
+      r => r.topicMatch === 'matched' && (r.questionEN || r.questionTA)
+    );
     if (validRows.length === 0) {
-      alert('No valid rows to upload. Ensure all topics are matched and questions are not empty.');
+      alert('No valid rows to upload. Ensure all subtopics/topics are matched and questions are not empty.');
       return;
     }
     const payload = validRows.map(r => ({
       'Topic': r.topic,
+      'Subtopic': r.subtopic,
+      'topicId': r.topicId,
+      'subtopicId': r.subtopicId,
       'Question (EN)': r.questionEN,
       'Question (TA)': r.questionTA,
-      'Option A (EN)': r.optionAEN, 'Option A (TA)': r.optionATA,
-      'Option B (EN)': r.optionBEN, 'Option B (TA)': r.optionBTA,
-      'Option C (EN)': r.optionCEN, 'Option C (TA)': r.optionCTA,
-      'Option D (EN)': r.optionDEN, 'Option D (TA)': r.optionDTA,
-      'Answer': r.answer, 'Explanation': r.explanation, 'Marks': r.marks,
+      'Option A (EN)': r.optionAEN,
+      'Option A (TA)': r.optionATA,
+      'Option B (EN)': r.optionBEN,
+      'Option B (TA)': r.optionBTA,
+      'Option C (EN)': r.optionCEN,
+      'Option C (TA)': r.optionCTA,
+      'Option D (EN)': r.optionDEN,
+      'Option D (TA)': r.optionDTA,
+      'Answer': r.answer,
+      'Explanation': r.explanation,
+      'Marks': r.marks,
     }));
     try {
       setBulkUploading(true);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/questions/bulk-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: payload, subjectId: dialogSubject, examId: dialogExam }),
+        body: JSON.stringify({
+          rows: payload,
+          subjectId: dialogSubject,
+          topicId: dialogTopic,
+          subtopicId: dialogSubtopic,
+          examId: dialogExam,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -879,7 +1109,9 @@ export default function QuestionManagement() {
         setBulkPreviewRows([]);
         setBulkPreviewStep('select');
         // Refresh questions list
-        const fetchUrl = selectedTopic
+        const fetchUrl = selectedSubtopic
+          ? `${import.meta.env.VITE_API_URL}/admin/questions?subtopicId=${selectedSubtopic}`
+          : selectedTopic
           ? `${import.meta.env.VITE_API_URL}/admin/questions?topicId=${selectedTopic}`
           : selectedSubject
           ? `${import.meta.env.VITE_API_URL}/admin/questions?subjectId=${selectedSubject}`
@@ -3335,9 +3567,9 @@ export default function QuestionManagement() {
           <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 p-4">
             <p className="font-semibold text-sm text-blue-900 dark:text-blue-300 mb-2">📊 Required Excel Columns</p>
             <div className="font-mono text-xs bg-white dark:bg-gray-900 border rounded p-2 overflow-x-auto mb-3 text-gray-600 dark:text-gray-300">
-              Q.No · Topic · Question (EN) · Question (TA) · Option A (EN) · Option A (TA) · Option B (EN) · Option B (TA) · Option C (EN) · Option C (TA) · Option D (EN) · Option D (TA) · Answer · Explanation
+              Q.No · Topic · Subtopic · Question (EN) · Question (TA) · Option A (EN) · Option A (TA) · Option B (EN) · Option B (TA) · Option C (EN) · Option C (TA) · Option D (EN) · Option D (TA) · Answer · Explanation
             </div>
-            <p className="text-xs text-muted-foreground mb-3">Topics in your file are matched by name against the topics already in the database. Unmatched rows are highlighted so you can fix them before uploading.</p>
+            <p className="text-xs text-muted-foreground mb-3">Subtopics and topics in your file are automatically matched against the database. If you select a Topic above, subtopics in your file (e.g. "Cell & Tissues") are automatically recognized and matched.</p>
             <Button variant="outline" size="sm" className="bg-green-600 hover:bg-green-700 text-white border-green-600" onClick={handleDownloadXlsxTemplate}>
               📥 Download Excel Template (.xlsx)
             </Button>
@@ -3361,8 +3593,8 @@ export default function QuestionManagement() {
             return (
               <div className="flex flex-wrap gap-3 text-sm">
                 <span className="rounded-full bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 px-3 py-1 font-medium">✅ {matched} matched</span>
-                {unmatched > 0 && <span className="rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-3 py-1 font-medium">❌ {unmatched} unmatched topics</span>}
-                {skipped > 0 && <span className="rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-200 px-3 py-1 font-medium">⚠️ {skipped} skipped (no topic)</span>}
+                {unmatched > 0 && <span className="rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-3 py-1 font-medium">❌ {unmatched} unmatched subtopics / topics</span>}
+                {skipped > 0 && <span className="rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-200 px-3 py-1 font-medium">⚠️ {skipped} skipped (no subtopic/topic)</span>}
                 <span className="text-muted-foreground ml-auto text-xs self-center">Only matched rows will be uploaded</span>
               </div>
             );
@@ -3375,7 +3607,7 @@ export default function QuestionManagement() {
                 <thead className="sticky top-0 bg-muted z-10">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground w-8">#</th>
-                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[120px]">Topic</th>
+                    <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[140px]">{dialogTopic ? 'Subtopic' : 'Subtopic / Topic'}</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground min-w-[220px]">Question</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">A</th>
                     <th className="px-3 py-2 text-left font-semibold text-muted-foreground">B</th>
@@ -3398,22 +3630,82 @@ export default function QuestionManagement() {
                           {isEditing ? (
                             <select
                               className="border rounded px-1 py-0.5 text-xs w-full bg-background"
-                              value={row.topicId ?? ''}
+                              value={row.subtopicId ? `sub_${row.subtopicId}` : row.topicId ? `top_${row.topicId}` : ''}
                               onChange={(e) => {
-                                const tid = Number(e.target.value);
-                                const found = bulkAllTopics.find(t => t.id === tid);
-                                setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? { ...r, topicId: tid, topic: found?.name || r.topic, topicMatch: found ? 'matched' : 'unmatched' } : r));
+                                const val = e.target.value;
+                                if (val.startsWith('sub_')) {
+                                  const sid = Number(val.replace('sub_', ''));
+                                  const found = bulkAllSubtopics.find(s => s.id === sid);
+                                  setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? {
+                                    ...r,
+                                    subtopicId: sid,
+                                    subtopic: found?.name || r.subtopic,
+                                    topicId: found?.topicId || r.topicId,
+                                    topic: found?.topicName || r.topic,
+                                    topicMatch: 'matched',
+                                    matchedLabel: found ? `Subtopic: ${found.name}` : undefined
+                                  } : r));
+                                } else if (val.startsWith('top_')) {
+                                  const tid = Number(val.replace('top_', ''));
+                                  const found = bulkAllTopics.find(t => t.id === tid);
+                                  setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? {
+                                    ...r,
+                                    topicId: tid,
+                                    topic: found?.name || r.topic,
+                                    subtopicId: null,
+                                    subtopic: '',
+                                    topicMatch: 'matched',
+                                    matchedLabel: found ? `Topic: ${found.name}` : undefined
+                                  } : r));
+                                } else {
+                                  setBulkPreviewRows(prev => prev.map((r, i) => i === idx ? {
+                                    ...r,
+                                    subtopicId: null,
+                                    topicId: null,
+                                    topicMatch: 'unmatched'
+                                  } : r));
+                                }
                               }}
                             >
-                              <option value="">-- select topic --</option>
-                              {bulkAllTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              <option value="">-- select subtopic / topic --</option>
+                              {dialogTopic ? (
+                                <optgroup label="Subtopics">
+                                  {bulkAllSubtopics.filter(s => s.topicId === dialogTopic).map(s => (
+                                    <option key={`sub_${s.id}`} value={`sub_${s.id}`}>
+                                      {s.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ) : (
+                                <optgroup label="Subtopics">
+                                  {bulkAllSubtopics.map(s => (
+                                    <option key={`sub_${s.id}`} value={`sub_${s.id}`}>
+                                      {s.name} {s.topicName ? `(${s.topicName})` : ''}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="Topics">
+                                {bulkAllTopics.map(t => (
+                                  <option key={`top_${t.id}`} value={`top_${t.id}`}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                           ) : (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-medium truncate max-w-[110px]" title={row.topic}>{row.topic || '—'}</span>
+                              <span className="font-medium truncate max-w-[130px]" title={row.subtopic || row.topic || '—'}>
+                                {row.subtopic || row.topic || '—'}
+                              </span>
                               <span className={`text-[10px] font-medium ${row.topicMatch === 'matched' ? 'text-green-600' : row.topicMatch === 'unmatched' ? 'text-red-500' : 'text-yellow-600'}`}>
                                 {row.topicMatch === 'matched' ? '✓ matched' : row.topicMatch === 'unmatched' ? '✗ not found' : '⚠ empty'}
                               </span>
+                              {row.subtopic && row.topic && row.subtopic !== row.topic && (
+                                <span className="text-[9px] text-muted-foreground truncate max-w-[130px]" title={`Topic: ${row.topic}`}>
+                                  Topic: {row.topic}
+                                </span>
+                              )}
                             </div>
                           )}
                         </td>

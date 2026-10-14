@@ -546,9 +546,7 @@ export default function TopicManagement() {
 
       setDeletingTopicId(topic.id);
 
-      // Use force flag when dependent data exists
-      const force = subCount > 0 || qCount > 0;
-      const res = await apiFetch(`/admin/topics/${topic.id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
+      const res = await apiFetch(`/admin/topics/${topic.id}?force=true`, { method: 'DELETE' });
       if (res && res.success) {
         if (res.deleted) {
           alert(`Deleted topic. Subtopics removed: ${res.deleted.subtopicCount}, Questions removed: ${res.deleted.questionCount}`);
