@@ -19,6 +19,7 @@ import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import NewTestPopup from '@/components/student/NewTestPopup';
 
 interface StudentLayoutProps {
   children: ReactNode;
@@ -285,6 +286,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
 
         {/* ── Main Content (pb-20 on mobile so bottom bar does not overlap content) ── */}
         <main className="flex-1 min-w-0 p-4 pb-20 sm:p-6 sm:pb-6 lg:p-7 max-w-[1360px]">
+          <NewTestPopup />
           {children}
         </main>
       </div>

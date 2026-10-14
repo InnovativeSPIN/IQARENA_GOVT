@@ -1,5 +1,5 @@
-import { ReactNode, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ReactNode, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FacultySidebar } from './FacultySidebar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
+import { apiFetch } from '@/lib/api';
 
 interface FacultyLayoutProps {
   children: ReactNode;
@@ -24,9 +25,21 @@ interface FacultyLayoutProps {
 export function FacultyLayout({ children }: FacultyLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState<number>(0);
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    apiFetch<{ success: boolean; notifications: any[] }>('/faculty/school/notifications')
+      .then((res) => {
+        if (res?.success && Array.isArray(res.notifications)) {
+          setNotificationCount(res.notifications.length);
+        }
+      })
+      .catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -104,6 +117,11 @@ export function FacultyLayout({ children }: FacultyLayoutProps) {
                 title={t('Notifications')}
               >
                 <Bell className="h-5 w-5" />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse">
+                    {notificationCount}
+                  </span>
+                )}
               </Button>
 
               {/* Profile Dropdown (Houses Logout) */}

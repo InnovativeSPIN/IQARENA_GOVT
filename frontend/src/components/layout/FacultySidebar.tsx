@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { apiFetch } from '@/lib/api';
 import {
   LayoutDashboard,
   Users,
@@ -45,6 +46,17 @@ export function FacultySidebar({
   const { logout } = useAuth();
   const { t } = useLanguage();
   const appName = import.meta.env.VITE_APP_NAME || 'IQARENA';
+  const [notificationCount, setNotificationCount] = useState<number>(0);
+
+  useEffect(() => {
+    apiFetch<{ success: boolean; notifications: any[] }>('/faculty/school/notifications')
+      .then((res) => {
+        if (res?.success && Array.isArray(res.notifications)) {
+          setNotificationCount(res.notifications.length);
+        }
+      })
+      .catch(() => {});
+  }, [location.pathname]);
 
   const isControlled = controlledCollapsed !== undefined;
   const collapsed = isControlled ? controlledCollapsed : internalCollapsed;
@@ -118,7 +130,17 @@ export function FacultySidebar({
                   title={collapsed ? label : undefined}
                 >
                   <item.icon className={cn('w-5 h-5 shrink-0', isActive && 'text-primary-foreground')} />
-                  {!collapsed && <span className="truncate">{label}</span>}
+                  {!collapsed && <span className="flex-1 truncate">{label}</span>}
+                  {item.path === '/faculty/notifications' && notificationCount > 0 && (
+                    <span
+                      className={cn(
+                        'bg-rose-500 text-white text-[10px] font-bold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center animate-pulse',
+                        collapsed && 'absolute top-2 right-2'
+                      )}
+                    >
+                      {notificationCount}
+                    </span>
+                  )}
                 </NavLink>
               </li>
             );
