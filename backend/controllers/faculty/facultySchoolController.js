@@ -1,6 +1,6 @@
 import pool from '../../config/db.js';
 import bcrypt from 'bcryptjs';
-import { ensureTestStandardColumn } from '../../lib/testNotifications.js';
+import { ensureTestStandardColumn, ensureNotificationsTable } from '../../lib/testNotifications.js';
 import { getAnswerSheet } from '../../lib/answerSheet.js';
 
 /*
@@ -358,23 +358,263 @@ export const getSchoolTestReport = (req, res) => withSchool(req, res, async (con
 
 // GET /api/faculty/school/notifications - "new test" alerts sent to this school's students
 export const getSchoolNotifications = (req, res) => withSchool(req, res, async (connection, school) => {
-  const [tbl] = await connection.query("SHOW TABLES LIKE 'notifications'");
-  if (tbl.length === 0) return res.json({ success: true, school, notifications: [] });
-  const [rows] = await connection.query(
-    `SELECT n.test_id AS testId, MAX(n.title) AS title, MAX(n.message) AS message, MIN(n.created_at) AS sentAt,
-            COUNT(*) AS recipients, SUM(n.is_read = 1) AS readCount,
-            GROUP_CONCAT(DISTINCT ss.standard ORDER BY ss.standard SEPARATOR ', ') AS classes
-     FROM notifications n
-     JOIN school_students ss ON ss.user_id = n.user_id AND ss.school_id = ?
-     GROUP BY n.test_id
-     ORDER BY sentAt DESC
-     LIMIT 100`,
-    [school.schoolId]
+  const sid = school.schoolId;
+  await ensureNotificationsTable(connection);
+
+  const [tests] = await connection.query(
+    `SELECT t.id AS testId, t.title, t.start_time AS startTime, t.end_time AS endTime, t.duration_minutes AS duration,
+            t.standard, e.name AS examName, s.name AS subjectName, t.created_at AS createdAt
+     FROM tests t
+     JOIN exams e ON e.id = t.exam_id
+     LEFT JOIN subjects s ON s.id = t.subject_id
+     WHERE t.parent_test_id IS NULL AND t.status = 'published' AND ${TEST_FOR_SCHOOL_SQL}
+     ORDER BY COALESCE(t.start_time, t.created_at) DESC
+     LIMIT 50`,
+    [sid, sid]
   );
+
+  const notifications = [];
+  for (const t of tests) {
+    const standards = (t.standard || '').split(',').map(x => x.trim()).filter(Boolean);
+    const stdClause = standards.length ? `AND ss.standard IN (${standards.map(() => '?').join(',')})` : '';
+
+    const [[eligible]] = await connection.query(
+      `SELECT COUNT(*) AS n FROM school_students ss WHERE ss.school_id = ? AND ss.status = 1 ${stdClause}`,
+      [sid, ...standards]
+    );
+
+    const [[notifStats]] = await connection.query(
+      `SELECT COUNT(DISTINCT n.user_id) AS deliveredCount, SUM(n.is_read = 1) AS readCount
+       FROM notifications n
+       JOIN school_students ss ON ss.user_id = n.user_id AND ss.school_id = ?
+       WHERE n.test_id = ?`,
+      [sid, t.testId]
+    );
+
+    const [[attemptStats]] = await connection.query(
+      `SELECT COUNT(DISTINCT sta.student_id) AS attemptCount
+       FROM student_test_attempts sta
+       JOIN school_students ss ON ss.user_id = sta.student_id AND ss.school_id = ?
+       WHERE sta.test_id = ?`,
+      [sid, t.testId]
+    );
+
+    const when = t.startTime
+      ? `Scheduled: ${new Date(t.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+      : 'Available now';
+    const msg = `${when} • ${t.duration || 0} minutes duration. Eligible classes: ${t.standard || 'All'}.`;
+
+    notifications.push({
+      testId: t.testId,
+      title: `Test Alert: ${t.title}`,
+      message: msg,
+      sentAt: t.startTime || t.createdAt,
+      recipients: Number(eligible?.n || 0),
+      deliveredCount: Number(notifStats?.deliveredCount || 0),
+      readCount: Math.max(Number(notifStats?.readCount || 0), Number(attemptStats?.attemptCount || 0)),
+      attemptCount: Number(attemptStats?.attemptCount || 0),
+      classes: t.standard || null,
+      examName: t.examName,
+      subjectName: t.subjectName
+    });
+  }
+
   res.json({
     success: true,
     school,
-    notifications: rows.map(r => ({ ...r, recipients: Number(r.recipients), readCount: Number(r.readCount || 0) })),
+    notifications,
+  });
+});
+
+// GET /api/faculty/school/performance - Comprehensive dynamic performance analytics for this school
+export const getSchoolPerformance = (req, res) => withSchool(req, res, async (connection, school) => {
+  const sid = school.schoolId;
+
+  // 1. Tests assigned to this school
+  const [tests] = await connection.query(
+    `SELECT t.id, t.title, t.status, t.start_time AS startTime, t.end_time AS endTime, t.duration_minutes AS duration,
+            t.standard, e.name AS examName, s.name AS subjectName, s.id AS subjectId, ${TEST_TOTAL_SQL} AS totalMarks,
+            (SELECT COUNT(*) FROM test_questions tq WHERE tq.test_id = t.id) AS questions
+     FROM tests t
+     JOIN exams e ON e.id = t.exam_id
+     LEFT JOIN subjects s ON s.id = t.subject_id
+     WHERE t.parent_test_id IS NULL AND t.status = 'published' AND ${TEST_FOR_SCHOOL_SQL}
+     ORDER BY COALESCE(t.start_time, t.created_at) DESC`,
+    [sid, sid]
+  );
+
+  const testPerformance = [];
+  const studentPerformance = [];
+  const subjectMap = {};
+
+  for (const t of tests) {
+    const standards = (t.standard || '').split(',').map(x => x.trim()).filter(Boolean);
+    const stdClause = standards.length ? `AND ss.standard IN (${standards.map(() => '?').join(',')})` : '';
+
+    const [[eligible]] = await connection.query(
+      `SELECT COUNT(*) AS n FROM school_students ss WHERE ss.school_id = ? AND ss.status = 1 ${stdClause}`,
+      [sid, ...standards]
+    );
+
+    const [rows] = await connection.query(
+      `SELECT sta.id AS attemptId, sta.score, sta.time_taken AS timeTaken, sta.completed_at AS completedAt,
+              ss.id AS studentId, ss.student_name AS studentName, ss.emis_no AS rollNo, ss.standard, ss.section
+       FROM student_test_attempts sta
+       JOIN school_students ss ON ss.user_id = sta.student_id AND ss.school_id = ?
+       WHERE sta.test_id = ? AND sta.status = 'completed'
+       ORDER BY sta.score DESC`,
+      [sid, t.id]
+    );
+
+    const scores = rows.map(r => pct(r.score, t.totalMarks));
+    const attempted = rows.length;
+    const avgScore = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : 0;
+    const highestScore = scores.length ? Math.max(...scores) : 0;
+    const lowestScore = scores.length ? Math.min(...scores) : 0;
+    const passCount = scores.filter(x => x >= PASS_PERCENT).length;
+    const passRate = attempted > 0 ? Math.round((passCount / attempted) * 100) : 0;
+
+    testPerformance.push({
+      testId: String(t.id),
+      testName: t.title,
+      subjectId: t.subjectId ? String(t.subjectId) : 'general',
+      subjectName: t.subjectName || 'General',
+      examType: t.examName,
+      totalStudents: attempted,
+      eligibleStudents: Number(eligible?.n || 0),
+      averageScore: avgScore,
+      highestScore: highestScore,
+      lowestScore: lowestScore,
+      passRate: passRate,
+      conductedAt: t.startTime || new Date().toISOString(),
+      duration: t.duration,
+      totalMarks: Number(t.totalMarks),
+      questions: Number(t.questions)
+    });
+
+    // Record student attempts with test ranks
+    let rank = 0;
+    let prevScore = null;
+    rows.forEach((r, idx) => {
+      if (r.score !== prevScore) {
+        rank = idx + 1;
+        prevScore = r.score;
+      }
+      studentPerformance.push({
+        studentId: String(r.studentId),
+        studentName: r.studentName,
+        rollNo: r.rollNo,
+        standard: r.standard,
+        section: r.section,
+        testId: String(t.id),
+        testName: t.title,
+        subjectId: t.subjectId ? String(t.subjectId) : 'general',
+        subjectName: t.subjectName || 'General',
+        score: Number(r.score),
+        percentage: pct(r.score, t.totalMarks),
+        rank: rank,
+        timeTaken: r.timeTaken || 0,
+        completedAt: r.completedAt
+      });
+    });
+
+    // Subject aggregating
+    const subjKey = t.subjectId ? String(t.subjectId) : (t.subjectName || 'general');
+    if (!subjectMap[subjKey]) {
+      subjectMap[subjKey] = {
+        id: subjKey,
+        subjectName: t.subjectName || 'General',
+        examType: t.examName,
+        testsCount: 0,
+        totalAttempts: 0,
+        scoresSum: 0,
+        passCount: 0
+      };
+    }
+    subjectMap[subjKey].testsCount += 1;
+    subjectMap[subjKey].totalAttempts += attempted;
+    subjectMap[subjKey].scoresSum += avgScore * attempted;
+    subjectMap[subjKey].passCount += passCount;
+  }
+
+  // 2. Topic-wise accuracy for this school
+  const [topicRows] = await connection.query(
+    `SELECT top.id AS topicId, top.topic_name AS topicName, s.name AS subjectName, s.id AS subjectId,
+            COUNT(sa.id) AS totalQuestions,
+            SUM(sa.is_correct = 1) AS correctAnswers
+     FROM student_answers sa
+     JOIN student_test_attempts sta ON sta.id = sa.attempt_id AND sta.status = 'completed'
+     JOIN school_students ss ON ss.user_id = sta.student_id AND ss.school_id = ?
+     JOIN questions q ON q.id = sa.question_id
+     JOIN topics top ON top.id = q.topic_id
+     LEFT JOIN subjects s ON s.id = top.subject_id
+     GROUP BY top.id, top.topic_name, s.name, s.id
+     ORDER BY totalQuestions DESC`,
+    [sid]
+  );
+
+  const topicAccuracy = topicRows.map(r => {
+    const totalQ = Number(r.totalQuestions) || 0;
+    const correct = Number(r.correctAnswers) || 0;
+    const accuracy = totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0;
+    return {
+      topicId: String(r.topicId),
+      topicName: r.topicName,
+      subjectId: r.subjectId ? String(r.subjectId) : null,
+      subjectName: r.subjectName || 'General',
+      totalQuestions: totalQ,
+      correctAnswers: correct,
+      accuracy
+    };
+  });
+
+  // 3. All topics list
+  const [allTopics] = await connection.query(
+    `SELECT t.id, t.topic_name AS name, t.subject_id AS subjectId, s.name AS subjectName
+     FROM topics t
+     JOIN subjects s ON s.id = t.subject_id
+     ORDER BY s.name, t.topic_name`
+  );
+
+  // 4. Students list for this school
+  const [allStudents] = await connection.query(
+    `SELECT id, student_name AS name, emis_no AS rollNo, standard, section
+     FROM school_students
+     WHERE school_id = ? AND status = 1
+     ORDER BY standard, student_name`,
+    [sid]
+  );
+
+  // 5. Overall statistics
+  const totalTests = testPerformance.length;
+  const totalStudentsAttempted = testPerformance.reduce((acc, t) => acc + t.totalStudents, 0);
+  const avgScore = totalStudentsAttempted > 0
+    ? Math.round(testPerformance.reduce((acc, t) => acc + (t.averageScore * t.totalStudents), 0) / totalStudentsAttempted)
+    : (totalTests > 0 ? Math.round(testPerformance.reduce((acc, t) => acc + t.averageScore, 0) / totalTests) : 0);
+  const totalPass = testPerformance.reduce((acc, t) => acc + (t.passRate * t.totalStudents / 100), 0);
+  const avgPassRate = totalStudentsAttempted > 0 ? Math.round((totalPass / totalStudentsAttempted) * 100) : 0;
+
+  const subjects = Object.values(subjectMap).map(s => ({
+    ...s,
+    averageScore: s.totalAttempts > 0 ? Math.round(s.scoresSum / s.totalAttempts) : 0,
+    passRate: s.totalAttempts > 0 ? Math.round((s.passCount / s.totalAttempts) * 100) : 0
+  }));
+
+  res.json({
+    success: true,
+    school,
+    subjects,
+    tests: testPerformance,
+    topicAccuracy,
+    studentPerformance,
+    allTopics: allTopics.map(t => ({ id: String(t.id), name: t.name, subjectId: String(t.subjectId), subjectName: t.subjectName })),
+    allStudents: allStudents.map(s => ({ id: String(s.id), name: s.name, rollNo: s.rollNo, standard: s.standard, section: s.section })),
+    overallStats: {
+      totalTests,
+      avgScore,
+      totalStudents: totalStudentsAttempted,
+      avgPassRate
+    }
   });
 });
 

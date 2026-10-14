@@ -142,39 +142,239 @@ export const createExam = async (req, res) => {
   }
 };
 
-// Delete an exam (admin)
+// Delete an exam (admin) - supports ?force=true
 export const deleteExam = async (req, res) => {
   const { id } = req.params;
+  const force = req.query.force === 'true' || req.query.force === true;
+
   if (!id) return res.status(400).json({ success: false, message: 'Exam id is required' });
 
+  let connection;
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
+
     const [exRows] = await connection.execute('SELECT id, name FROM exams WHERE id = ?', [id]);
     if (exRows.length === 0) {
       connection.release();
       return res.status(404).json({ success: false, message: 'Exam not found' });
     }
     const exam = exRows[0];
+    const examName = exam.name;
 
-    // Prevent deletion if subjects exist
+    // Check existing dependencies
     const [subCountRows] = await connection.execute('SELECT COUNT(*) as count FROM subjects WHERE exam_id = ?', [id]);
-    if (subCountRows[0].count > 0) {
+    const [testCountRows] = await connection.execute('SELECT COUNT(*) as count FROM tests WHERE exam_id = ?', [id]);
+    const [paperCountRows] = await connection.execute('SELECT COUNT(*) as count FROM offline_papers WHERE exam_id = ?', [id]);
+    const [qCountRows] = await connection.execute('SELECT COUNT(*) as count FROM questions WHERE exam_type = ?', [examName]);
+    const [batchCountRows] = await connection.execute('SELECT COUNT(*) as count FROM batches WHERE exam_id = ?', [id]);
+
+    const subjectCount = subCountRows[0]?.count || 0;
+    const testCount = testCountRows[0]?.count || 0;
+    const paperCount = paperCountRows[0]?.count || 0;
+    const questionCount = qCountRows[0]?.count || 0;
+    const batchCount = batchCountRows[0]?.count || 0;
+
+    const hasDependencies = subjectCount > 0 || testCount > 0 || paperCount > 0 || questionCount > 0 || batchCount > 0;
+
+    if (!force && hasDependencies) {
       connection.release();
-      return res.status(400).json({ success: false, message: 'Cannot delete exam: subjects are associated with this exam' });
+      const reasons = [];
+      if (subjectCount > 0) reasons.push(`${subjectCount} subject(s)`);
+      if (questionCount > 0) reasons.push(`${questionCount} question(s)`);
+      if (testCount > 0) reasons.push(`${testCount} test(s)`);
+      if (paperCount > 0) reasons.push(`${paperCount} offline paper(s)`);
+      if (batchCount > 0) reasons.push(`${batchCount} batch(es)`);
+      return res.status(400).json({
+        success: false,
+        requiresForce: true,
+        message: `Cannot delete exam: associated with ${reasons.join(', ')}. Use force delete to remove all associated records.`
+      });
     }
 
-    // Prevent deletion if questions reference this exam name
-    const [qCountRows] = await connection.execute('SELECT COUNT(*) as count FROM questions WHERE exam_type = ?', [exam.name]);
-    if (qCountRows[0].count > 0) {
-      connection.release();
-      return res.status(400).json({ success: false, message: 'Cannot delete exam: questions reference this exam' });
+    await connection.beginTransaction();
+
+    // 1. Gather all subjects belonging to this exam
+    const [subjects] = await connection.execute('SELECT id FROM subjects WHERE exam_id = ?', [id]);
+    const subjectIds = subjects.map(s => s.id);
+
+    // 2. Gather topics and subtopics for these subjects
+    let topicIds = [];
+    let subtopicIds = [];
+    if (subjectIds.length > 0) {
+      const sPlaceholders = subjectIds.map(() => '?').join(',');
+      const [topics] = await connection.execute(
+        `SELECT id FROM topics WHERE subject_id IN (${sPlaceholders})`,
+        subjectIds
+      );
+      topicIds = topics.map(t => t.id);
+
+      if (topicIds.length > 0) {
+        const tPlaceholders = topicIds.map(() => '?').join(',');
+        const [subtopics] = await connection.execute(
+          `SELECT id FROM subtopics WHERE topic_id IN (${tPlaceholders})`,
+          topicIds
+        );
+        subtopicIds = subtopics.map(st => st.id);
+      }
     }
 
+    // 3. Gather all questions linked by subtopic, topic, or exam_type
+    const questionIdSet = new Set();
+    if (subtopicIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < subtopicIds.length; i += chunkSize) {
+        const chunk = subtopicIds.slice(i, i + chunkSize);
+        const [qRows] = await connection.execute(
+          `SELECT id FROM questions WHERE subtopic_id IN (${chunk.map(() => '?').join(',')})`,
+          chunk
+        );
+        qRows.forEach(q => questionIdSet.add(q.id));
+      }
+    }
+    if (topicIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < topicIds.length; i += chunkSize) {
+        const chunk = topicIds.slice(i, i + chunkSize);
+        const [qRows] = await connection.execute(
+          `SELECT id FROM questions WHERE topic_id IN (${chunk.map(() => '?').join(',')})`,
+          chunk
+        );
+        qRows.forEach(q => questionIdSet.add(q.id));
+      }
+    }
+    // Also questions with exam_type matching examName
+    const [qByExam] = await connection.execute('SELECT id FROM questions WHERE exam_type = ?', [examName]);
+    qByExam.forEach(q => questionIdSet.add(q.id));
+
+    const questionIds = Array.from(questionIdSet);
+
+    // 4. Cascade delete questions & all their references
+    if (questionIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < questionIds.length; i += chunkSize) {
+        const chunk = questionIds.slice(i, i + chunkSize);
+        const qPlaceholders = chunk.map(() => '?').join(',');
+
+        await connection.execute(`DELETE FROM test_questions WHERE question_id IN (${qPlaceholders})`, chunk);
+        await connection.execute(`DELETE FROM offline_paper_questions WHERE question_id IN (${qPlaceholders})`, chunk);
+        await connection.execute(`DELETE FROM student_test_attempt_questions WHERE question_id IN (${qPlaceholders})`, chunk);
+        await connection.execute(`DELETE FROM student_answers WHERE question_id IN (${qPlaceholders})`, chunk);
+        await connection.execute(`DELETE FROM questions WHERE id IN (${qPlaceholders})`, chunk);
+      }
+    }
+
+    // 5. Unlink subtopics and topics from tests & offline_papers
+    if (subtopicIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < subtopicIds.length; i += chunkSize) {
+        const chunk = subtopicIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        await connection.execute(`UPDATE tests SET subtopic_id = NULL WHERE subtopic_id IN (${placeholders})`, chunk);
+        await connection.execute(`UPDATE offline_papers SET subtopic_id = NULL WHERE subtopic_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM subtopics WHERE id IN (${placeholders})`, chunk);
+      }
+    }
+
+    if (topicIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < topicIds.length; i += chunkSize) {
+        const chunk = topicIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        await connection.execute(`UPDATE tests SET topic_id = NULL WHERE topic_id IN (${placeholders})`, chunk);
+        await connection.execute(`UPDATE offline_papers SET topic_id = NULL WHERE topic_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM topics WHERE id IN (${placeholders})`, chunk);
+      }
+    }
+
+    // 6. Delete subject allocations and subjects
+    if (subjectIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < subjectIds.length; i += chunkSize) {
+        const chunk = subjectIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        await connection.execute(`UPDATE tests SET subject_id = NULL WHERE subject_id IN (${placeholders})`, chunk);
+        await connection.execute(`UPDATE offline_papers SET subject_id = NULL WHERE subject_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM subject_allocation WHERE subject_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM subjects WHERE id IN (${placeholders})`, chunk);
+      }
+    }
+
+    // 7. Delete tests for this exam
+    const [tests] = await connection.execute('SELECT id FROM tests WHERE exam_id = ?', [id]);
+    const testIds = tests.map(t => t.id);
+    if (testIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < testIds.length; i += chunkSize) {
+        const chunk = testIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+
+        // Find attempts for these tests
+        const [attempts] = await connection.execute(`SELECT id FROM student_test_attempts WHERE test_id IN (${placeholders})`, chunk);
+        const attemptIds = attempts.map(a => a.id);
+        if (attemptIds.length > 0) {
+          for (let j = 0; j < attemptIds.length; j += chunkSize) {
+            const attChunk = attemptIds.slice(j, j + chunkSize);
+            const attPlaceholders = attChunk.map(() => '?').join(',');
+            await connection.execute(`DELETE FROM student_answers WHERE attempt_id IN (${attPlaceholders})`, attChunk);
+            await connection.execute(`DELETE FROM student_test_attempt_questions WHERE attempt_id IN (${attPlaceholders})`, attChunk);
+            await connection.execute(`DELETE FROM student_test_attempts WHERE id IN (${attPlaceholders})`, attChunk);
+          }
+        }
+
+        await connection.execute(`DELETE FROM test_assignments WHERE test_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM school_test_assignments WHERE test_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM test_questions WHERE test_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM tests WHERE parent_test_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM tests WHERE id IN (${placeholders})`, chunk);
+      }
+    }
+
+    // 8. Delete offline_papers for this exam
+    const [offlinePapers] = await connection.execute('SELECT id FROM offline_papers WHERE exam_id = ?', [id]);
+    const paperIds = offlinePapers.map(p => p.id);
+    if (paperIds.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < paperIds.length; i += chunkSize) {
+        const chunk = paperIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        await connection.execute(`DELETE FROM offline_paper_questions WHERE paper_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM offline_papers WHERE parent_paper_id IN (${placeholders})`, chunk);
+        await connection.execute(`DELETE FROM offline_papers WHERE id IN (${placeholders})`, chunk);
+      }
+    }
+
+    // 9. Clean up batches for this exam
+    const [batches] = await connection.execute('SELECT id FROM batches WHERE exam_id = ?', [id]);
+    const batchIds = batches.map(b => b.id);
+    if (batchIds.length > 0) {
+      const placeholders = batchIds.map(() => '?').join(',');
+      await connection.execute(`UPDATE students SET batch_id = NULL WHERE batch_id IN (${placeholders})`, batchIds);
+      await connection.execute(`DELETE FROM batches WHERE id IN (${placeholders})`, batchIds);
+    }
+
+    // 10. Clean up students and school_students
+    await connection.execute('UPDATE school_students SET exam_id = NULL WHERE exam_id = ?', [id]);
+    try {
+      await connection.execute('UPDATE students SET exam_id = NULL WHERE exam_id = ?', [id]);
+    } catch (_) {
+      await connection.execute('DELETE FROM students WHERE exam_id = ?', [id]).catch(() => {});
+    }
+
+    // 11. Clean up ebooks
+    await connection.execute('UPDATE ebooks SET exam_name = NULL WHERE exam_name = ?', [examName]).catch(() => {});
+
+    // 12. Finally delete the exam
     await connection.execute('DELETE FROM exams WHERE id = ?', [id]);
+
+    await connection.commit();
     connection.release();
 
-    return res.status(200).json({ success: true, message: 'Exam deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Exam and all associated data deleted successfully' });
   } catch (error) {
+    if (connection) {
+      try { await connection.rollback(); } catch (_) {}
+      connection.release();
+    }
     console.error('Error deleting exam:', error);
     return res.status(500).json({ success: false, message: 'Error deleting exam', error: error.message });
   }

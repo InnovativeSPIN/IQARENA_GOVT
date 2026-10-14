@@ -1,10 +1,54 @@
 import pool from '../../config/db.js';
 import { ensureNotificationsTable } from '../../lib/testNotifications.js';
 
+export async function syncStudentTestNotifications(userId, connection) {
+  try {
+    const [[studentRow]] = await connection.query('SELECT batch_id FROM students WHERE user_id = ?', [userId]);
+    const [[schoolStudent]] = await connection.query('SELECT school_id, standard FROM school_students WHERE user_id = ? AND status = 1 LIMIT 1', [userId]);
+
+    if (!studentRow && !schoolStudent) return;
+
+    const batchId = studentRow?.batch_id || null;
+    const schoolId = schoolStudent?.school_id ?? null;
+    const standard = schoolStudent?.standard || null;
+
+    const [tests] = await connection.query(
+      `SELECT t.id, t.title, t.duration_minutes, t.start_time, t.end_time
+       FROM tests t
+       LEFT JOIN student_test_attempts sta ON sta.test_id = t.id AND sta.student_id = ? AND sta.status = 'completed'
+       WHERE (t.batch_id = ? OR t.batch_id IS NULL)
+         AND t.status = 'published'
+         AND (t.school_ids IS NULL OR JSON_LENGTH(t.school_ids) = 0 OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$') OR JSON_CONTAINS(t.school_ids, JSON_QUOTE(CAST(? AS CHAR)), '$'))
+         AND (t.standard IS NULL OR t.standard = '' OR ? IS NULL OR FIND_IN_SET(?, t.standard) > 0)
+         AND sta.id IS NULL
+         AND (t.end_time IS NULL OR t.end_time > NOW())`,
+      [userId, batchId, schoolId, schoolId, standard, standard]
+    );
+
+    if (!tests || tests.length === 0) return;
+
+    for (const test of tests) {
+      const when = test.start_time
+        ? `Starts ${new Date(test.start_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`
+        : 'Available now';
+      const message = `${when} • ${test.duration_minutes || 0} minutes. Open Assigned Tests to take it.`;
+
+      await connection.query(
+        `INSERT IGNORE INTO notifications (user_id, test_id, type, title, message) VALUES (?, ?, 'exam_reminder', ?, ?)`,
+        [userId, test.id, `New test: ${test.title}`, message]
+      );
+    }
+  } catch (err) {
+    console.error('Error syncing student test notifications:', err);
+  }
+}
+
 export const listNotifications = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await ensureNotificationsTable(connection);
+    await syncStudentTestNotifications(req.user.id, connection);
+
     const [rows] = await connection.query(
       `SELECT id, test_id AS testId, type, title, message, is_read AS isRead, created_at AS createdAt
        FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 200`,
@@ -42,6 +86,8 @@ export const listPendingTestPopups = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await ensureNotificationsTable(connection);
+    await syncStudentTestNotifications(req.user.id, connection);
+
     const [rows] = await connection.query(
       `SELECT n.id AS notificationId, t.id AS testId, t.title, t.start_time AS startTime, t.end_time AS endTime,
               t.duration_minutes AS duration, e.name AS examName, s.name AS subjectName,

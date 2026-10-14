@@ -156,14 +156,26 @@ export const loginUser = async (req, res) => {
   try {
     connection = await pool.getConnection();
 
-    // 1. Check users table by userid, email, or school UDISE code
+    const trimmedId = String(userId).trim();
+
+    // 1. Check users table by userid, email, or school UDISE code (for FACULTY)
     let [users] = await connection.execute(
       `SELECT u.id, u.userid, u.name, u.phone, u.password, r.name as role, u.school_id, s.udise_code, s.school_name
        FROM users u 
        LEFT JOIN roles r ON u.role_id = r.id 
        LEFT JOIN schools s ON u.school_id = s.id
-       WHERE u.userid = ? OR u.email = ? OR s.udise_code = ?`,
-      [String(userId).trim(), String(userId).trim(), String(userId).trim()]
+       WHERE u.userid = ? 
+          OR u.email = ? 
+          OR (s.udise_code = ? AND (r.name = 'FACULTY' OR u.role_id = 2))
+       ORDER BY 
+          CASE 
+            WHEN (u.userid = ? OR s.udise_code = ?) AND (r.name = 'FACULTY' OR u.role_id = 2) THEN 1
+            WHEN u.userid = ? THEN 2
+            WHEN u.email = ? THEN 3
+            ELSE 4
+          END ASC
+       LIMIT 1`,
+      [trimmedId, trimmedId, trimmedId, trimmedId, trimmedId, trimmedId, trimmedId]
     );
 
     // 2. If no user record exists, check if this is a registered school in schools table by UDISE

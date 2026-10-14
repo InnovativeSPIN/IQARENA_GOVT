@@ -119,25 +119,22 @@ export const updateSubject = async (req, res) => {
 
 export const deleteSubject = async (req, res) => {
   const { id } = req.params;
+  const force = req.query.force === 'true' || req.query.force === '1';
   try {
     const connection = await pool.getConnection();
-    const [existing] = await connection.execute('SELECT id FROM subjects WHERE id = ?', [id]);
+    const [existing] = await connection.execute('SELECT id, name FROM subjects WHERE id = ?', [id]);
     if (existing.length === 0) {
       connection.release();
       return res.status(404).json({ success: false, message: 'Subject not found' });
     }
+
     const [topics] = await connection.execute('SELECT id FROM topics WHERE subject_id = ?', [id]);
-    if (topics.length > 0) {
-      connection.release();
-      return res.status(400).json({ success: false, message: 'Cannot delete subject with existing topics' });
-    }
     let allocations = [];
     try {
       const [allocRows] = await connection.execute('SELECT id FROM subject_allocation WHERE subject_id = ?', [id]);
       allocations = allocRows;
     } catch (err) {
       if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.errno === 1146)) {
-        console.warn('subject_allocation table missing; treating as no allocations');
         allocations = [];
       } else {
         connection.release();
@@ -145,10 +142,125 @@ export const deleteSubject = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Error checking allocations', error: err.message });
       }
     }
-    if (allocations.length > 0) {
+
+    if (!force && (topics.length > 0 || allocations.length > 0)) {
       connection.release();
-      return res.status(400).json({ success: false, message: 'Cannot delete subject with assigned faculty' });
+      return res.status(400).json({
+        success: false,
+        hasDependencies: true,
+        topicCount: topics.length,
+        allocationCount: allocations.length,
+        message: 'Subject has existing topics or assigned faculty. Use ?force=true to delete subject and all associated questions/topics.'
+      });
     }
+
+    if (force) {
+      await connection.beginTransaction();
+      try {
+        const topicIds = topics.map(t => t.id);
+        let subtopicIds = [];
+        let qIds = [];
+
+        if (topicIds.length > 0) {
+          const tPlaceholders = topicIds.map(() => '?').join(',');
+          const [subs] = await connection.execute(
+            `SELECT id FROM subtopics WHERE topic_id IN (${tPlaceholders})`,
+            topicIds
+          );
+          subtopicIds = subs.map(s => s.id);
+
+          if (subtopicIds.length > 0) {
+            const sPlaceholders = subtopicIds.map(() => '?').join(',');
+            const [qRows] = await connection.execute(
+              `SELECT id FROM questions WHERE topic_id IN (${tPlaceholders}) OR subtopic_id IN (${sPlaceholders})`,
+              [...topicIds, ...subtopicIds]
+            );
+            qIds = qRows.map(q => q.id);
+          } else {
+            const [qRows] = await connection.execute(
+              `SELECT id FROM questions WHERE topic_id IN (${tPlaceholders})`,
+              topicIds
+            );
+            qIds = qRows.map(q => q.id);
+          }
+        }
+
+        // Helper to run delete in batches of 500
+        const deleteBatch = async (table, column, ids) => {
+          for (let i = 0; i < ids.length; i += 500) {
+            const batch = ids.slice(i, i + 500);
+            const placeholders = batch.map(() => '?').join(',');
+            await connection.execute(`DELETE FROM ${table} WHERE ${column} IN (${placeholders})`, batch);
+          }
+        };
+
+        // Helper to run update null in batches of 500
+        const updateNullBatch = async (table, column, ids) => {
+          for (let i = 0; i < ids.length; i += 500) {
+            const batch = ids.slice(i, i + 500);
+            const placeholders = batch.map(() => '?').join(',');
+            await connection.execute(`UPDATE ${table} SET ${column} = NULL WHERE ${column} IN (${placeholders})`, batch);
+          }
+        };
+
+        // 1. Delete dependent question rows
+        if (qIds.length > 0) {
+          await deleteBatch('test_questions', 'question_id', qIds);
+          await deleteBatch('offline_paper_questions', 'question_id', qIds);
+          await deleteBatch('student_test_attempt_questions', 'question_id', qIds);
+          await deleteBatch('student_answers', 'question_id', qIds);
+          await deleteBatch('questions', 'id', qIds);
+        }
+
+        // 2. Unlink & delete subtopics
+        if (subtopicIds.length > 0) {
+          await updateNullBatch('tests', 'subtopic_id', subtopicIds);
+          await updateNullBatch('offline_papers', 'subtopic_id', subtopicIds);
+          await deleteBatch('subtopics', 'id', subtopicIds);
+        }
+
+        // 3. Unlink & delete topics
+        if (topicIds.length > 0) {
+          await updateNullBatch('tests', 'topic_id', topicIds);
+          await updateNullBatch('offline_papers', 'topic_id', topicIds);
+          await deleteBatch('topics', 'id', topicIds);
+        }
+
+        // 4. Unlink subject from tests and offline papers
+        await connection.execute('UPDATE tests SET subject_id = NULL WHERE subject_id = ?', [id]);
+        await connection.execute('UPDATE offline_papers SET subject_id = NULL WHERE subject_id = ?', [id]);
+
+        // 5. Delete subject allocations
+        try {
+          await connection.execute('DELETE FROM subject_allocation WHERE subject_id = ?', [id]);
+        } catch (e) {
+          // table might not exist
+        }
+
+        // 6. Delete subject
+        await connection.execute('DELETE FROM subjects WHERE id = ?', [id]);
+
+        await connection.commit();
+        connection.release();
+        return res.status(200).json({
+          success: true,
+          message: 'Subject and all associated questions/topics deleted successfully',
+          deleted: {
+            subjectId: id,
+            topicCount: topicIds.length,
+            subtopicCount: subtopicIds.length,
+            questionCount: qIds.length
+          }
+        });
+      } catch (err) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error during forced subject delete:', err);
+        return res.status(500).json({ success: false, message: 'Failed to force delete subject', error: err.message });
+      }
+    }
+
+    // Default safe delete (no dependencies)
     await connection.execute('DELETE FROM subjects WHERE id = ?', [id]);
     connection.release();
     return res.status(200).json({ success: true, message: 'Subject deleted successfully' });

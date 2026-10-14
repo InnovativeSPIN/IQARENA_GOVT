@@ -160,10 +160,13 @@ export const deleteTopic = async (req, res) => {
         const subIds = subs.map(s => s.id);
 
         // Collect question ids under topic or its subtopics
-        const qParams = [];
         let qRows = [];
         if (subIds.length > 0) {
-          const [qr] = await connection.execute(`SELECT id FROM questions WHERE topic_id = ? OR subtopic_id IN (${subIds.map(() => '?').join(',')})`, [id, ...subIds]);
+          const subPlaceholders = subIds.map(() => '?').join(',');
+          const [qr] = await connection.execute(
+            `SELECT id FROM questions WHERE topic_id = ? OR subtopic_id IN (${subPlaceholders})`,
+            [id, ...subIds]
+          );
           qRows = qr;
         } else {
           const [qr] = await connection.execute('SELECT id FROM questions WHERE topic_id = ?', [id]);
@@ -171,27 +174,54 @@ export const deleteTopic = async (req, res) => {
         }
         const qIds = qRows.map(q => q.id);
 
-        // Delete dependent test_questions first (foreign key without cascade)
+        // Helper to run delete in batches of 500
+        const deleteBatch = async (table, column, ids) => {
+          for (let i = 0; i < ids.length; i += 500) {
+            const batch = ids.slice(i, i + 500);
+            const placeholders = batch.map(() => '?').join(',');
+            await connection.execute(`DELETE FROM ${table} WHERE ${column} IN (${placeholders})`, batch);
+          }
+        };
+
+        // Helper to run update null in batches of 500
+        const updateNullBatch = async (table, column, ids) => {
+          for (let i = 0; i < ids.length; i += 500) {
+            const batch = ids.slice(i, i + 500);
+            const placeholders = batch.map(() => '?').join(',');
+            await connection.execute(`UPDATE ${table} SET ${column} = NULL WHERE ${column} IN (${placeholders})`, batch);
+          }
+        };
+
+        // Delete all dependent rows referencing these questions
         if (qIds.length > 0) {
-          await connection.execute(`DELETE FROM test_questions WHERE question_id IN (${qIds.map(() => '?').join(',')})`, qIds);
+          await deleteBatch('test_questions', 'question_id', qIds);
+          await deleteBatch('offline_paper_questions', 'question_id', qIds);
+          await deleteBatch('student_test_attempt_questions', 'question_id', qIds);
+          await deleteBatch('student_answers', 'question_id', qIds);
+          await deleteBatch('questions', 'id', qIds);
         }
 
-        // Delete questions
-        if (qIds.length > 0) {
-          await connection.execute(`DELETE FROM questions WHERE id IN (${qIds.map(() => '?').join(',')})`, qIds);
-        }
-
-        // Delete subtopics
+        // Unlink and delete subtopics
         if (subIds.length > 0) {
-          await connection.execute(`DELETE FROM subtopics WHERE id IN (${subIds.map(() => '?').join(',')})`, subIds);
+          await updateNullBatch('tests', 'subtopic_id', subIds);
+          await updateNullBatch('offline_papers', 'subtopic_id', subIds);
+          await deleteBatch('subtopics', 'id', subIds);
         }
+
+        // Unlink topic from tests and offline_papers before deleting topic
+        await connection.execute('UPDATE tests SET topic_id = NULL WHERE topic_id = ?', [id]);
+        await connection.execute('UPDATE offline_papers SET topic_id = NULL WHERE topic_id = ?', [id]);
 
         // Finally delete topic
         await connection.execute('DELETE FROM topics WHERE id = ?', [id]);
 
         await connection.commit();
         connection.release();
-        return res.status(200).json({ success: true, message: 'Topic and dependent subtopics/questions deleted successfully', deleted: { topicId: id, subtopicCount: subIds.length, questionCount: qIds.length } });
+        return res.status(200).json({
+          success: true,
+          message: 'Topic and dependent subtopics/questions deleted successfully',
+          deleted: { topicId: id, subtopicCount: subIds.length, questionCount: qIds.length }
+        });
       } catch (err) {
         await connection.rollback();
         connection.release();

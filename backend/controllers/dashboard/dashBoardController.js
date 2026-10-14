@@ -11,6 +11,7 @@ export const getAllExams = async (req, res) => {
 	}
 };
 import pool from '../../config/db.js';
+import { syncStudentTestNotifications } from '../student/notificationsController.js';
 
 export const getAdminDashboardStats = async (req, res) => {
 	try {
@@ -165,9 +166,12 @@ export const getStudentDashboardStats = async (req, res) => {
       : 0;
 
  
+    // Auto-sync notifications for any published active tests
+    await syncStudentTestNotifications(studentId, connection);
+
     const [[studentRow]] = await connection.query(
-      'SELECT batch_id FROM students WHERE id = ?',
-      [studentId]
+      'SELECT batch_id FROM students WHERE user_id = ? OR id = ? LIMIT 1',
+      [studentId, studentId]
     );
 
     // School students have a school + class instead of a batch
@@ -200,7 +204,7 @@ export const getStudentDashboardStats = async (req, res) => {
            AND (? IS NULL OR t.school_ids IS NULL OR JSON_LENGTH(t.school_ids) = 0 OR JSON_CONTAINS(t.school_ids, CAST(? AS CHAR), '$') OR JSON_CONTAINS(t.school_ids, JSON_QUOTE(CAST(? AS CHAR)), '$'))
            AND (? IS NULL OR t.standard IS NULL OR t.standard = '' OR FIND_IN_SET(?, t.standard) > 0)
            AND t.status = 'published'
-           AND (t.start_time IS NULL OR t.start_time >= NOW() - INTERVAL 1 HOUR)
+           AND (t.end_time IS NULL OR t.end_time >= NOW())
          ORDER BY t.start_time ASC
          LIMIT 5`,
         [studentId, batchId, batchId, schoolId, schoolId, schoolId, standard, standard]
@@ -210,7 +214,9 @@ export const getStudentDashboardStats = async (req, res) => {
       upcomingTests = upcomingRows.map((row) => {
         const start = row.startTime ? new Date(row.startTime) : null;
         const end = row.endTime ? new Date(row.endTime) : null;
-        const isLive = !!(start && end && now >= start && now <= end);
+        const startOk = !start || now >= start;
+        const endOk = !end || now <= end;
+        const isLive = !!(startOk && endOk && row.status === 'published');
         const isPublished = row.status === 'published';
         const isAlreadyAttempted = row.attemptCount > 0;
 
@@ -221,6 +227,7 @@ export const getStudentDashboardStats = async (req, res) => {
           duration: row.duration,
           totalMarks: row.totalMarks,
           startTime: row.startTime,
+          endTime: row.endTime,
           status: row.status,
           isLive,
           isPublished,

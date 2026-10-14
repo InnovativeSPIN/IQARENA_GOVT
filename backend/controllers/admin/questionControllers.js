@@ -580,45 +580,109 @@ export const bulkUploadQuestions = async (req, res) => {
       if (items.length === 0) {
         return res.status(400).json({ success: false, message: 'No rows provided' });
       }
-      const { subjectId } = req.body;
+      const { subjectId, topicId, subtopicId, examId } = req.body;
       const connection = await pool.getConnection();
       await connection.beginTransaction();
+
+      const [allSubtopics] = await connection.execute(`
+        SELECT st.id as subtopic_id, st.subtopic_name, st.topic_id, t.topic_name, t.subject_id, s.exam_id, e.name as exam_name
+        FROM subtopics st
+        JOIN topics t ON st.topic_id = t.id
+        JOIN subjects s ON t.subject_id = s.id
+        LEFT JOIN exams e ON s.exam_id = e.id
+      `);
+
       const [allTopics] = await connection.execute(`
-        SELECT t.id, t.topic_name, t.subject_id, s.exam_id 
+        SELECT t.id as topic_id, t.topic_name, t.subject_id, s.exam_id, e.name as exam_name 
         FROM topics t 
         JOIN subjects s ON t.subject_id = s.id
+        LEFT JOIN exams e ON s.exam_id = e.id
       `);
+
+      let defaultExamName = '';
+      if (examId) {
+        if (/^\d+$/.test(String(examId))) {
+          const [ex] = await connection.execute('SELECT name FROM exams WHERE id = ?', [examId]);
+          if (ex.length > 0) defaultExamName = ex[0].name;
+        } else {
+          defaultExamName = String(examId);
+        }
+      }
+
+      const norm = (s) => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
-        const topicName = item['Topic'] || item.Topic || '';
-        let tId = null;
-        let tExamId = null;
-        if (topicName) {
-          const matched = allTopics.find(t =>
-            t.topic_name && t.topic_name.toLowerCase() === topicName.toLowerCase()
-          );
-          if (matched) {
-            tId = matched.id;
-            tExamId = matched.exam_id;
+        const rawSubtopic = item['Subtopic'] || item.Subtopic || item.subtopic || item['Sub-Topic'] || item['Sub Topic'] || '';
+        const rawTopic = item['Topic'] || item.Topic || item.topic || '';
+        const candidate = String(rawSubtopic || rawTopic || '').trim();
+
+        let tId = item.topicId || item.topic_id || topicId || null;
+        let sId = item.subtopicId || item.subtopic_id || subtopicId || null;
+        let tExamName = defaultExamName;
+
+        // Try matching subtopic first
+        if (candidate) {
+          let matchedSub = null;
+          if (tId) {
+            matchedSub = allSubtopics.find(st =>
+              String(st.topic_id) === String(tId) && norm(st.subtopic_name) === norm(candidate)
+            );
+          }
+          if (!matchedSub && subjectId) {
+            matchedSub = allSubtopics.find(st =>
+              String(st.subject_id) === String(subjectId) && norm(st.subtopic_name) === norm(candidate)
+            );
+          }
+          if (!matchedSub) {
+            matchedSub = allSubtopics.find(st => norm(st.subtopic_name) === norm(candidate));
+          }
+
+          if (matchedSub) {
+            sId = matchedSub.subtopic_id;
+            tId = matchedSub.topic_id;
+            if (!tExamName && matchedSub.exam_name) tExamName = matchedSub.exam_name;
+          } else {
+            // If candidate doesn't match subtopic, try matching topic
+            let matchedTop = null;
+            if (subjectId) {
+              matchedTop = allTopics.find(t =>
+                String(t.subject_id) === String(subjectId) && norm(t.topic_name) === norm(candidate)
+              );
+            }
+            if (!matchedTop) {
+              matchedTop = allTopics.find(t => norm(t.topic_name) === norm(candidate));
+            }
+            if (matchedTop) {
+              tId = matchedTop.topic_id;
+              if (!tExamName && matchedTop.exam_name) tExamName = matchedTop.exam_name;
+            }
           }
         }
+
         if (!tId) {
           await connection.rollback();
           connection.release();
-          return res.status(400).json({ success: false, message: `Unmatched topic '${topicName}' on row ${index + 1}` });
+          return res.status(400).json({ success: false, message: `Unmatched topic or subtopic '${candidate}' on row ${index + 1}` });
         }
-        const qTextEn = item['Question (EN)'] || '';
-        const qTextTa = item['Question (TA)'] || '';
-        const optAEn = item['Option A (EN)'] || ''; const optATa = item['Option A (TA)'] || '';
-        const optBEn = item['Option B (EN)'] || ''; const optBTa = item['Option B (TA)'] || '';
-        const optCEn = item['Option C (EN)'] || ''; const optCTa = item['Option C (TA)'] || '';
-        const optDEn = item['Option D (EN)'] || ''; const optDTa = item['Option D (TA)'] || '';
-        const ans = String(item['Answer'] || item.answer || '').toUpperCase();
+
+        const qTextEn = item['Question (EN)'] || item.questionText || item.question || '';
+        const qTextTa = item['Question (TA)'] || item.question_ta || '';
+        const optAEn = item['Option A (EN)'] || item.optionA || item.option_a || '';
+        const optATa = item['Option A (TA)'] || item.option_a_ta || '';
+        const optBEn = item['Option B (EN)'] || item.optionB || item.option_b || '';
+        const optBTa = item['Option B (TA)'] || item.option_b_ta || '';
+        const optCEn = item['Option C (EN)'] || item.optionC || item.option_c || '';
+        const optCTa = item['Option C (TA)'] || item.option_c_ta || '';
+        const optDEn = item['Option D (EN)'] || item.optionD || item.option_d || '';
+        const optDTa = item['Option D (TA)'] || item.option_d_ta || '';
+        const ans = String(item['Answer'] || item.answer || item.correctAnswer || '').trim().toUpperCase();
         const explanation = item['Explanation'] || item.explanation || '';
         const marks = Number(item['Marks'] || item.marks || 4);
+
         await connection.execute(
           `INSERT INTO questions (exam_type, topic_id, subtopic_id, question_text, question_ta, option_a, option_a_ta, option_b, option_b_ta, option_c, option_c_ta, option_d, option_d_ta, answer, explanation, marks, created_by_admin, created_by_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [tExamId || '', tId, null, qTextEn, qTextTa, optAEn, optATa, optBEn, optBTa, optCEn, optCTa, optDEn, optDTa, ans, explanation, marks, req.adminId || req.user?.id || 1, null]
+          [tExamName || '', tId, sId, qTextEn, qTextTa, optAEn, optATa, optBEn, optBTa, optCEn, optCTa, optDEn, optDTa, ans, explanation, marks, req.adminId || req.user?.id || 1, null]
         );
       }
       await connection.commit();
@@ -710,69 +774,115 @@ export const bulkUploadQuestions = async (req, res) => {
     // We support optional form fields examId, subjectId, topicId, subtopicId (apply to all)
     const { examId, subjectId, topicId, subtopicId } = req.body || {};
 
-    // Fetch all topics to map topic names from CSV to topic IDs
-    const [allTopics] = await connection.execute('SELECT id, topic_name, subject_id FROM topics');
+    // Fetch all subtopics and topics to map names from CSV to IDs
+    const [allSubtopics] = await connection.execute(`
+      SELECT st.id as subtopic_id, st.subtopic_name, st.topic_id, t.topic_name, t.subject_id, s.exam_id, e.name as exam_name
+      FROM subtopics st
+      JOIN topics t ON st.topic_id = t.id
+      JOIN subjects s ON t.subject_id = s.id
+      LEFT JOIN exams e ON s.exam_id = e.id
+    `);
+
+    const [allTopics] = await connection.execute(`
+      SELECT t.id as topic_id, t.topic_name, t.subject_id, s.exam_id, e.name as exam_name 
+      FROM topics t 
+      JOIN subjects s ON t.subject_id = s.id
+      LEFT JOIN exams e ON s.exam_id = e.id
+    `);
+
+    let defaultExamName = '';
+    if (examId) {
+      if (/^\d+$/.test(String(examId))) {
+        const [ex] = await connection.execute('SELECT name FROM exams WHERE id = ?', [examId]);
+        if (ex.length > 0) defaultExamName = ex[0].name;
+      } else {
+        defaultExamName = String(examId);
+      }
+    }
+
+    const norm = (s) => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
 
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
-      const topicName = item.Topic || item.topic || '';
-      
-      // Coerce numeric fields
-      let tId = topicId || item.topicId || item.topic_id || null;
-      if (!tId && topicName) {
-        // Try to match topic name (case insensitive)
-        const matched = allTopics.find(t => t.topic_name.toLowerCase() === topicName.toLowerCase() && (!subjectId || String(t.subject_id) === String(subjectId)));
-        if (matched) tId = matched.id;
+      const rawSubtopic = item.Subtopic || item.subtopic || item['Sub-Topic'] || item['Sub Topic'] || '';
+      const rawTopic = item.Topic || item.topic || '';
+      const candidate = String(rawSubtopic || rawTopic || '').trim();
+
+      let tId = item.topicId || item.topic_id || topicId || null;
+      let sId = item.subtopicId || item.subtopic_id || subtopicId || null;
+      let tExamName = defaultExamName;
+
+      // Try matching subtopic first
+      if (candidate) {
+        let matchedSub = null;
+        if (tId) {
+          matchedSub = allSubtopics.find(st =>
+            String(st.topic_id) === String(tId) && norm(st.subtopic_name) === norm(candidate)
+          );
+        }
+        if (!matchedSub && subjectId) {
+          matchedSub = allSubtopics.find(st =>
+            String(st.subject_id) === String(subjectId) && norm(st.subtopic_name) === norm(candidate)
+          );
+        }
+        if (!matchedSub) {
+          matchedSub = allSubtopics.find(st => norm(st.subtopic_name) === norm(candidate));
+        }
+
+        if (matchedSub) {
+          sId = matchedSub.subtopic_id;
+          tId = matchedSub.topic_id;
+          if (!tExamName && matchedSub.exam_name) tExamName = matchedSub.exam_name;
+        } else {
+          // If candidate doesn't match subtopic, try matching topic
+          let matchedTop = null;
+          if (subjectId) {
+            matchedTop = allTopics.find(t =>
+              String(t.subject_id) === String(subjectId) && norm(t.topic_name) === norm(candidate)
+            );
+          }
+          if (!matchedTop) {
+            matchedTop = allTopics.find(t => norm(t.topic_name) === norm(candidate));
+          }
+          if (matchedTop) {
+            tId = matchedTop.topic_id;
+            if (!tExamName && matchedTop.exam_name) tExamName = matchedTop.exam_name;
+          }
+        }
       }
-      
-      const sId = subtopicId || item.subtopicId || item.subtopic_id || null;
-      
-      const qTextEn = item['Question (EN)'] || item.questionText || item.question || item.question_text || '';
-      const qTextTa = item['Question (TA)'] || item.question_ta || '';
-      
-      const optAEn = item['Option A (EN)'] || item.optionA || item.option_a || '';
-      const optATa = item['Option A (TA)'] || item.option_a_ta || '';
-      
-      const optBEn = item['Option B (EN)'] || item.optionB || item.option_b || '';
-      const optBTa = item['Option B (TA)'] || item.option_b_ta || '';
-      
-      const optCEn = item['Option C (EN)'] || item.optionC || item.option_c || '';
-      const optCTa = item['Option C (TA)'] || item.option_c_ta || '';
-      
-      const optDEn = item['Option D (EN)'] || item.optionD || item.option_d || '';
-      const optDTa = item['Option D (TA)'] || item.option_d_ta || '';
-      
-      const ans = item.Answer || item.correctAnswer || item.answer || item.correct_answer || '';
-      const explanation = item.Explanation || item.explanation || '';
-      const marks = item.Marks || item.marks ? Number(item.Marks || item.marks) : 4;
 
       if (!tId) {
         await connection.rollback();
         connection.release();
-        return res.status(400).json({ success: false, message: `Topic ID missing or unrecognized Topic Name '${topicName}' for row ${index + 1}` });
+        return res.status(400).json({ success: false, message: `Topic or Subtopic missing or unrecognized '${candidate}' for row ${index + 1}` });
       }
 
-      // If subtopic provided, validate belongs to topic
-      if (sId) {
-        const [srows] = await connection.execute('SELECT id, topic_id FROM subtopics WHERE id = ?', [sId]);
-        if (srows.length === 0 || String(srows[0].topic_id) !== String(tId)) {
-          await connection.rollback();
-          connection.release();
-          return res.status(400).json({ success: false, message: `Invalid subtopic ${sId} for topic ${tId} on row ${index + 1}` });
-        }
-      }
+      const qTextEn = item['Question (EN)'] || item.questionText || item.question || item.question_text || '';
+      const qTextTa = item['Question (TA)'] || item.question_ta || '';
+      const optAEn = item['Option A (EN)'] || item.optionA || item.option_a || '';
+      const optATa = item['Option A (TA)'] || item.option_a_ta || '';
+      const optBEn = item['Option B (EN)'] || item.optionB || item.option_b || '';
+      const optBTa = item['Option B (TA)'] || item.option_b_ta || '';
+      const optCEn = item['Option C (EN)'] || item.optionC || item.option_c || '';
+      const optCTa = item['Option C (TA)'] || item.option_c_ta || '';
+      const optDEn = item['Option D (EN)'] || item.optionD || item.option_d || '';
+      const optDTa = item['Option D (TA)'] || item.option_d_ta || '';
+      const ans = String(item.Answer || item.correctAnswer || item.answer || item.correct_answer || '').trim().toUpperCase();
+      const explanation = item.Explanation || item.explanation || '';
+      const marks = Number(item.Marks || item.marks || 4);
 
       await connection.execute(
         `INSERT INTO questions (
-          topic_id, subtopic_id, 
+          exam_type, topic_id, subtopic_id, 
           question_text, question_ta,
           option_a, option_a_ta,
           option_b, option_b_ta,
           option_c, option_c_ta,
           option_d, option_d_ta,
           answer, explanation, marks, created_by_admin, created_by_user_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          tExamName || '',
           tId, sId || null, 
           qTextEn, qTextTa, 
           optAEn, optATa, 
